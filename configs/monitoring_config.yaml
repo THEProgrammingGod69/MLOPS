@@ -20,3 +20,16 @@ monitoring:
     MODERATE: [0.20, 0.30]
     HIGH: [0.30, 0.50]
     CRITICAL: [0.50, 1.0]
+  # Live (in-process) monitoring used by the FastAPI service and exported to Prometheus.
+  # Sampling noise sets how many predictions the rolling window needs before drift is meaningful:
+  #   PSI (10 bins):      E[PSI | no drift] ~ (bins - 1) / n -> 0.018 at n = 500; across 18 tracked
+  #                       features the worst one stayed below 0.06 in simulation (threshold 0.10)
+  #   TVD (k categories): E[TVD | no drift] ~ 0.4 * sum_k sqrt(p_k (1 - p_k)) / sqrt(n)
+  #                       -> ~0.025 at n = 1500 for the 7 OULAD modules (threshold 0.05)
+  live:
+    window_size: 2000
+    min_samples: 500
+    min_samples_categorical: 1500
+    recent_predictions: 200
+    max_batch_size: 2000
+    reference_profile_path: "configs/drift_reference_profile.json"

@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "source": "eda_numeric_summary",
+  "approximate": true,
+  "generated_at": "2026-10-13T13:30:46+00:00",
+  "n_rows": null,
+  "numeric": {
+    "asm_score_std": {
+      "edges": [
+        3.5355339059327378,
+        6.658328118479394,
+        11.31370849898476,
+        21.636772679022496
+      ],
+      "proportions": [
+        0.25,
+        0.25,
+        0.25,
+        0.2,
+        0.05
+      ],
+      "missing_rate": 0.8820142836321236,
+      "mean": 8.289461068767299,
+      "min": 0.0,
+      "max": 56.56854249492381
+    },
+    "vle_total_clicks": {
+      "edges": [
+        90.0,
+        225.0,
+        471.0,
+        1132.0
+      ],
+      "proportions": [
+        0.25,
+        0.25,
+        0.25,
+        0.2,
+        0.05
+      ],
+      "missing_rate": 0.0,
+      "mean": 357.4277073312928,
+      "min": 0.0,
+      "max": 7697.0
+    },
+    "vle_clicks_last_7_days": {
+      "edges": [
+        2.0,
+        25.0,
+        77.0,
+        230.0
+      ],
+      "proportions": [
+        0.25,
+        0.25,
+        0.25,
+        0.2,
+        0.05
+      ],
+      "missing_rate": 0.0,
+      "mean": 58.68550502842151,
+      "min": 0.0,
+      "max": 2306.0
+    },
+    "vle_clicks_last_14_days": {
+      "edges": [
+        24.0,
+        83.0,
+        191.0,
+        468.0
+      ],
+      "proportions": [
+        0.25,
+        0.25,
+        0.25,
+        0.2,
+        0.05
+      ],
+      "missing_rate": 0.0,
+      "mean": 139.61875091094592,
+      "min": 0.0,
+      "max": 3209.0
+    },
+    "vle_forum_clicks": {
+      "edges": [
+        5.0,
+        36.0,
+        109.0,
+        351.0
+      ],
+      "proportions": [
+        0.25,
+        0.25,
+        0.25,
+        0.2,
+        0.05
+      ],
+      "missing_rate": 0.0,
+      "mean": 93.86037020842444,
+      "min": 0.0,
+      "max": 4163.0
+    }
+  },
+  "categorical": {},
+  "note": "Quartile-based approximation from reports/eda/numeric_summary.csv. Run with --source parquet on the development_train split for exact deciles."
+}

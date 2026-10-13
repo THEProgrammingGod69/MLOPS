@@ -14,14 +14,14 @@ class PredictiveFeatures(BaseModel):
     module_presentation_length: int = Field(..., gt=0, description="Length of the module presentation in days")
     
     asm_submission_count: float = Field(..., ge=0, description="Number of assessments submitted by day 28")
-    asm_mean_score: float = Field(..., description="Mean score on assessments submitted by day 28")
-    asm_score_std: float = Field(..., description="Standard deviation of assessment scores")
+    asm_mean_score: Optional[float] = Field(..., description="Mean score on assessments submitted by day 28 (null if no scored submissions)")
+    asm_score_std: Optional[float] = Field(..., description="Standard deviation of assessment scores (null if fewer than two scored submissions)")
     asm_failed_count: float = Field(..., ge=0, description="Number of failed assessments by day 28")
-    asm_average_delay: float = Field(..., description="Average delay in days for assessment submission")
+    asm_average_delay: Optional[float] = Field(..., description="Average delay in days for assessment submission (null if no submissions)")
     
     vle_total_clicks: float = Field(..., ge=0, description="Total VLE clicks by day 28")
     vle_active_days: float = Field(..., ge=0, description="Number of days active on the VLE by day 28")
-    vle_days_since_last_activity: float = Field(..., ge=0, description="Days since last VLE activity before day 28")
+    vle_days_since_last_activity: Optional[float] = Field(..., ge=0, description="Days since last VLE activity before day 28 (null if no VLE activity)")
     vle_clicks_last_7_days: float = Field(..., ge=0, description="VLE clicks between day 21 and 28")
     vle_clicks_last_14_days: float = Field(..., ge=0, description="VLE clicks between day 14 and 28")
     vle_forum_clicks: float = Field(..., ge=0, description="VLE clicks on forum resources")
@@ -59,3 +59,69 @@ class PredictionResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     model_loaded: bool
+
+
+# ---------------------------------------------------------------------------
+# v1 API schemas (web UI + batch scoring). The legacy models above are unchanged.
+# ---------------------------------------------------------------------------
+
+class FeatureContribution(BaseModel):
+    """SHAP contribution of one raw input feature (one-hot columns summed)."""
+    feature: str = Field(..., description="Raw input feature name")
+    label: str = Field(..., description="Human-readable feature label")
+    value: Optional[float | str] = Field(None, description="Input value supplied for this feature")
+    contribution: float = Field(..., description="Summed SHAP value in log-odds space")
+
+
+class ExplanationDetail(BaseModel):
+    backend: str = Field(..., description="Engine that produced the SHAP values")
+    base_value: float = Field(..., description="Expected model output (log-odds) before any feature contributes")
+    contributions: List[FeatureContribution] = Field(..., description="All 21 features, sorted by |contribution|")
+
+
+class PredictionResponseV1(PredictionResponse):
+    """Legacy response plus traceability fields used by the web UI."""
+    prediction_id: str = Field(..., description="Opaque id of this prediction (no student identifiers)")
+    model_version: str = Field(..., description="Short SHA-256 of the served model artifact")
+    latency_ms: float = Field(..., description="Server-side inference time in milliseconds")
+    missing_features: List[str] = Field(default_factory=list, description="Features supplied as null")
+    explanation: Optional[ExplanationDetail] = None
+
+
+class BatchStudent(PredictiveFeatures):
+    record_id: Optional[str] = Field(None, max_length=128, description="Caller-side row reference echoed back in results")
+
+
+class BatchPredictionRequest(BaseModel):
+    students: List[BatchStudent] = Field(..., min_length=1, description="Students to score")
+    include_explanation: bool = Field(False, description="Attach the top risk drivers to every row")
+
+
+class BatchRowResult(BaseModel):
+    index: int
+    record_id: Optional[str] = None
+    risk_probability: float
+    risk_tier: str
+    intervention_level: str
+    human_review_required: bool
+    fairness_adjusted_decision: Optional[int] = None
+    fairness_status: str
+    missing_features: List[str] = Field(default_factory=list)
+    top_drivers: Optional[List[FeatureContribution]] = None
+
+
+class BatchSummary(BaseModel):
+    count: int
+    mean_risk_probability: float
+    median_risk_probability: float
+    max_risk_probability: float
+    human_review_count: int
+    human_review_rate: float
+    tier_counts: dict
+
+
+class BatchPredictionResponse(BaseModel):
+    model_version: str
+    latency_ms: float
+    summary: BatchSummary
+    results: List[BatchRowResult]

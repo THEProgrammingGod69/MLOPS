@@ -92,3 +92,12 @@ docker-compose -f docker-compose.monitoring.yml down
 
 ## 15. Future extensions
 This monitoring framework is designed to integrate into standard observability stacks. Application metrics can be scraped by Prometheus and visualized in Grafana. The Python-based batch scripts can be orchestrated via Apache Airflow or CI/CD pipelines to run periodically on new data exports, enabling automated alerting for substantial drift or fairness violations.
+
+## 16. Update: live drift and the v2 dashboard
+Section 14's "three panels" and "drift is batch-only" describe the original Step 2.13 setup.
+Version 2.0 adds an in-process rolling window (last 2,000 predictions) that computes PSI/TVD drift
+against a reference profile of the training split and exports it to Prometheus at scrape time,
+offline evaluation results exported as gauges, six additional alert rules, and a 66-panel Grafana
+dashboard generated from `monitoring/grafana/build_dashboard.py`. The batch evaluation in
+`evaluate_monitoring.py` is unchanged. See
+[web_platform_and_observability.md](web_platform_and_observability.md).

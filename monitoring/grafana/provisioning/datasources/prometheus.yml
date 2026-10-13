@@ -2,8 +2,12 @@ apiVersion: 1
 
 datasources:
   - name: Prometheus
+    uid: prometheus          # dashboards reference this uid; without it Grafana generates a random one
     type: prometheus
     access: proxy
     url: http://prometheus:9090
     isDefault: true
     editable: false
+    jsonData:
+      timeInterval: 5s       # matches the scrape interval so $__rate_interval stays tight
+      httpMethod: POST

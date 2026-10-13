@@ -145,3 +145,10 @@ Pydantic handles automatic validation. Out-of-bound counts (like negative submis
 - PII, student IDs, and raw feature payloads are intentionally excluded from logs.
 - Sensitive demographics (e.g., gender, disability) are never processed or retained by this predictive endpoint.
 - Internal file paths and Python exceptions are swallowed and converted to standard generic HTTP statuses.
+
+## 10. Update: v2 API and web UI
+The endpoints above keep their contract. Version 2.0 adds the `/api/v1/*` endpoints (batch scoring,
+model card, feature schema, offline insights, live monitoring), a React web UI, and fixes the Docker
+image so it builds and starts (a SyntaxError in the SHAP patch step; missing `prometheus-client`/`fairlearn`, missing `src/monitoring` and `src/data`).
+`asm_mean_score`, `asm_score_std`, `asm_average_delay` and `vle_days_since_last_activity` now accept
+`null` for genuinely missing values. See [web_platform_and_observability.md](web_platform_and_observability.md).

@@ -1,0 +1,91 @@
+# Full stack: API + web UI + Prometheus + Grafana (+ optional traffic simulator).
+#
+#   docker compose up -d --build                  # API :8000, UI :8080, Prometheus :9090, Grafana :3000
+#   docker compose --profile demo up -d --build   # ... plus synthetic traffic for live dashboards
+#
+# The API image bakes in models/baseline/xgb_pipeline.pkl, so the model must exist
+# locally before building (dvc pull / training pipeline). reports/ is mounted read-only
+# so re-running a batch evaluation updates the UI and Grafana without a rebuild.
+services:
+  api:
+    build: .
+    image: student-dropout-api:2.0
+    container_name: mlops-api
+    ports:
+      - "8000:8000"
+    environment:
+      - GRAFANA_URL=http://localhost:3000
+      - PROMETHEUS_URL=http://localhost:9090
+    volumes:
+      - ./reports:/app/reports:ro
+    restart: unless-stopped
+
+  web:
+    build: ./frontend
+    image: student-dropout-web:2.0
+    container_name: mlops-web
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.53.2
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.docker.yml'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/prediction_dashboard.json
+      - GF_USERS_DEFAULT_THEME=dark
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false
+      - GF_PLUGINS_PUBLIC_KEY_RETRIEVAL_DISABLED=true
+      - GF_NEWS_NEWS_FEED_ENABLED=false
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  traffic:
+    image: python:3.10-slim
+    container_name: mlops-traffic
+    profiles: ["demo"]
+    working_dir: /app
+    command: ["python", "scripts/simulate_traffic.py", "--url", "http://api:8000", "--rps", "5",
+              "--schedule", "normal:900,engagement-drop:600,normal"]
+    volumes:
+      - ./scripts:/app/scripts:ro
+      - ./configs:/app/configs:ro
+      - ./reports/eda:/app/reports/eda:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  grafana-data:

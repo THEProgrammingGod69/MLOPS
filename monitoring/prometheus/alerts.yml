@@ -27,3 +27,61 @@ groups:
         annotations:
           summary: "Prediction API is down"
           description: "Prometheus cannot scrape metrics from the API."
+
+      - alert: ModelNotLoaded
+        expr: max by (instance) (student_dropout_model_loaded) == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Risk model is not loaded"
+          description: "The API is up but cannot score students: check models/baseline/xgb_pipeline.pkl."
+
+      - alert: HighInputRejectionRate
+        expr: >
+          sum(rate(student_dropout_http_requests_total{route=~".*predict.*", status=~"4.."}[5m]))
+          / clamp_min(sum(rate(student_dropout_http_requests_total{route=~".*predict.*"}[5m])), 1e-9) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Many prediction requests fail validation"
+          description: "More than 20% of prediction requests were rejected (HTTP 4xx); an upstream schema change is likely."
+
+  - name: model_behaviour_alerts
+    rules:
+      - alert: SubstantialFeatureDrift
+        expr: sum(student_dropout_drifted_features{severity="substantial"}) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Substantial data drift detected"
+          description: "{{ $value }} feature(s) exceed PSI 0.25 / TVD 0.15 against the training reference. Investigate before trusting risk scores."
+
+      - alert: RiskScoreShift
+        expr: max(student_dropout_window_mean_risk) > 0.35 and max(student_dropout_window_predictions) >= 500
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Mean predicted dropout risk is unusually high"
+          description: "Mean risk in the live window is {{ $value | humanizePercentage }} (validation mean is about 18%)."
+
+      - alert: HumanReviewSurge
+        expr: max(student_dropout_window_review_rate) > 0.35 and max(student_dropout_window_predictions) >= 500
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Human review queue is growing fast"
+          description: "{{ $value | humanizePercentage }} of recent students need advisor review (validation share is about 16%)."
+
+      - alert: ExplainerUnavailable
+        expr: max by (instance) (student_dropout_component_up{component="explainer"}) == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SHAP explanations are unavailable"
+          description: "Predictions still work, but advisors will not see risk drivers."
