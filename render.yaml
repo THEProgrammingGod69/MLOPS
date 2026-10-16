@@ -1,0 +1,63 @@
+# Render Blueprint: API + web UI, Prometheus and Grafana, each with a public HTTPS URL.
+# Deploy: render.com -> New -> Blueprint -> pick this repository -> Apply.
+#
+# Render's free tier cannot receive private-network traffic, so the services talk over
+# their public URLs. Those URLs are https://<service name>.onrender.com unless the name
+# is already taken, in which case Render appends a suffix: then update API_TARGET,
+# PROMETHEUS_URL and GRAFANA_URL below (or in the dashboard) and redeploy.
+#
+# The API image needs models/baseline/xgb_pipeline.pkl (and, optionally,
+# models/mitigated/xgb_threshold_optimizer_gender.pkl) committed to the repository.
+services:
+  - type: web
+    name: mlops-ews-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: GRAFANA_URL
+        value: https://mlops-ews-grafana.onrender.com
+      - key: PROMETHEUS_URL
+        value: https://mlops-ews-prometheus.onrender.com
+      # Built-in demo traffic so dashboards are always populated (0 disables it).
+      - key: DEMO_TRAFFIC_RPS
+        value: "1"
+      - key: SIM_SCHEDULE
+        value: normal:1200,engagement-drop:600
+
+  - type: web
+    name: mlops-ews-prometheus
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./deploy/render/prometheus.Dockerfile
+    dockerContext: .
+    healthCheckPath: /-/ready
+    envVars:
+      - key: PORT
+        value: "9090"
+      - key: API_TARGET
+        value: mlops-ews-api.onrender.com
+      - key: API_SCHEME
+        value: https
+
+  - type: web
+    name: mlops-ews-grafana
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./deploy/render/grafana.Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: PROMETHEUS_URL
+        value: https://mlops-ews-prometheus.onrender.com
+      - key: GF_SECURITY_ADMIN_PASSWORD
+        generateValue: true

@@ -39,7 +39,8 @@ wheels/
 *.egg
 # Data and Models
 /data/
-/models/
+/models/*
+!/models/README.md
 /scratch/
 
 # MLflow

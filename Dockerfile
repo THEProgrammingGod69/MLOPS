@@ -1,3 +1,12 @@
+# ---- web UI (served by FastAPI at /ui; docker-compose also runs it behind nginx) ----
+FROM node:22-alpine AS ui
+WORKDIR /ui
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
+# ---- API -----------------------------------------------------------------------
 FROM python:3.10-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -23,6 +32,8 @@ RUN python -c "import pathlib, shap; p = pathlib.Path(shap.__file__).parent / 'e
 COPY configs/ configs/
 COPY src/ src/
 COPY reports/ reports/
+COPY scripts/ scripts/
+COPY --from=ui /ui/dist frontend/dist
 
 # Model artifacts: .dockerignore keeps only the served XGBoost pipeline and the
 # fairness post-processor (if present) from models/.
@@ -35,5 +46,7 @@ USER apiuser
 # Expose port and start FastAPI server
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=3 \
-    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"
-CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:' + __import__('os').environ.get('PORT', '8000') + '/health', timeout=4).status == 200 else 1)"
+# PORT is honoured for PaaS hosts (Render, Railway); DEMO_TRAFFIC_RPS > 0 starts the
+# built-in traffic simulator so dashboards have live data (see scripts/start-api.sh).
+CMD ["sh", "scripts/start-api.sh"]

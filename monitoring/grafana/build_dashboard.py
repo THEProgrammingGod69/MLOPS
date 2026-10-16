@@ -345,7 +345,7 @@ def build():
                     for q, r in ((0.5, "A"), (0.9, "B"), (0.95, "C"), (0.99, "D"))],
                    8, y, 8, 8, unit="s", overrides=QUANTILE_OVERRIDES, th=thresholds(("transparent", None), (CRIT, 1)),
                    th_style="dashed", fill=0, description="Single-prediction latency quantiles. Dashed line: 1 s p95 alert."),
-        heatmap("Latency distribution", [target(f"sum by (le) (increase(student_dropout_prediction_latency_seconds_bucket{{{SEL}}}[$__interval]))", "{{le}}", fmt="heatmap", interval="15s")],
+        heatmap("Latency distribution", [target(f"sum by (le) (increase(student_dropout_prediction_latency_seconds_bucket{{{SEL}}}[$__rate_interval]))", "{{le}}", fmt="heatmap", interval="15s")],
                 16, y, 8, 8, scheme="Blues", y_unit="s", description="Every prediction request bucketed by latency over time."),
     ]
     y += 8
@@ -377,12 +377,12 @@ def build():
                  0, y, 7, 9, overrides=TIER_OVERRIDES, unit="percentunit", values=("percent",),
                  description="Share of each risk tier among the most recent students scored."),
         timeseries("Students scored by risk tier",
-                   [target(f'sum by (risk_tier) (increase(student_dropout_predictions_total{{{SEL}, risk_tier="{t}"}}[$__interval]))', t, ref=chr(65 + i), interval="30s")
+                   [target(f'sum by (risk_tier) (increase(student_dropout_predictions_total{{{SEL}, risk_tier="{t}"}}[$__rate_interval]))', t, ref=chr(65 + i), interval="30s")
                     for i, t in enumerate(TIERS)],
                    7, y, 9, 9, unit="short", stack=True, bars=True, overrides=TIER_OVERRIDES,
                    legend_calcs=(), legend_mode="list", description="Students per interval, stacked by tier."),
         heatmap("Risk score distribution over time",
-                [target(f"sum by (le) (increase(student_dropout_risk_probability_bucket{{{SEL}}}[$__interval]))", "{{le}}", fmt="heatmap", interval="30s")],
+                [target(f"sum by (le) (increase(student_dropout_risk_probability_bucket{{{SEL}}}[$__rate_interval]))", "{{le}}", fmt="heatmap", interval="30s")],
                 16, y, 8, 9, scheme="Oranges", y_unit="percentunit",
                 description="Predicted dropout probability histogram (5 % buckets) per interval."),
     ]

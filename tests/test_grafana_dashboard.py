@@ -116,6 +116,25 @@ class TestGrafanaDashboard(unittest.TestCase):
         self.assertIn("api:8000", prom["scrape_configs"][0]["static_configs"][0]["targets"])
         self.assertTrue(os.path.exists("frontend/Dockerfile"))
 
+    def test_render_blueprint_is_consistent(self):
+        with open("render.yaml") as f:
+            services = {s["name"]: s for s in yaml.safe_load(f)["services"]}
+        self.assertEqual(len(services), 3)
+        for service in services.values():
+            self.assertTrue(os.path.exists(service["dockerfilePath"]), service["dockerfilePath"])
+            self.assertEqual(service["dockerContext"], ".")
+        env = {s: {e["key"]: e.get("value") for e in services[s]["envVars"]} for s in services}
+        api, prom, grafana = "mlops-ews-api", "mlops-ews-prometheus", "mlops-ews-grafana"
+        self.assertEqual(env[prom]["API_TARGET"], f"{api}.onrender.com")
+        self.assertEqual(env[grafana]["PROMETHEUS_URL"], f"https://{prom}.onrender.com")
+        self.assertEqual(env[api]["GRAFANA_URL"], f"https://{grafana}.onrender.com")
+        admin = next(e for e in services[grafana]["envVars"] if e["key"] == "GF_SECURITY_ADMIN_PASSWORD")
+        self.assertTrue(admin.get("generateValue"), "Grafana admin password must not be a fixed value")
+        with open("deploy/render/prometheus.yml.template") as f:
+            template = f.read()
+        self.assertIn("__API_TARGET__", template)
+        self.assertIn("__API_SCHEME__", template)
+
 
 if __name__ == "__main__":
     unittest.main()

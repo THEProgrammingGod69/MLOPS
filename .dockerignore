@@ -13,13 +13,14 @@ scratch/
 tests/
 notebooks/
 *.parquet
-frontend/
-scripts/
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
 docs/
-monitoring/
 # Reports: ship the CSV/JSON results, not the figures.
 reports/**/*.png
 # Models: only the served pipeline and the fairness post-processor.
 models/**
 !models/baseline/xgb_pipeline.pkl
 !models/mitigated/xgb_threshold_optimizer_gender.pkl
+!models/README.md

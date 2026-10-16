@@ -1,0 +1,15 @@
+# Grafana datasource for the Render Blueprint: Prometheus reached over its public URL.
+# PROMETHEUS_URL is interpolated by Grafana from the service environment.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: ${PROMETHEUS_URL}
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      httpMethod: POST

@@ -78,6 +78,11 @@ class TestExplanationEngine(unittest.TestCase):
 
 
 class TestV1Endpoints(unittest.TestCase):
+    def test_root_serves_json_to_clients(self):
+        response = client.get("/", headers={"Accept": "application/json"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("service", response.json())
+
     def test_health_and_meta(self):
         body = client.get("/api/v1/health").json()
         self.assertEqual(body["status"], "healthy")

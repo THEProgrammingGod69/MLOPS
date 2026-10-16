@@ -1916,7 +1916,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (le) (increase(student_dropout_prediction_latency_seconds_bucket{job=~\"$job\", instance=~\"$instance\"}[$__interval]))",
+          "expr": "sum by (le) (increase(student_dropout_prediction_latency_seconds_bucket{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "{{le}}",
           "refId": "A",
           "range": true,
@@ -2539,7 +2539,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (risk_tier) (increase(student_dropout_predictions_total{job=~\"$job\", instance=~\"$instance\", risk_tier=\"LOW\"}[$__interval]))",
+          "expr": "sum by (risk_tier) (increase(student_dropout_predictions_total{job=~\"$job\", instance=~\"$instance\", risk_tier=\"LOW\"}[$__rate_interval]))",
           "legendFormat": "LOW",
           "refId": "A",
           "range": true,
@@ -2553,7 +2553,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (risk_tier) (increase(student_dropout_predictions_total{job=~\"$job\", instance=~\"$instance\", risk_tier=\"MODERATE\"}[$__interval]))",
+          "expr": "sum by (risk_tier) (increase(student_dropout_predictions_total{job=~\"$job\", instance=~\"$instance\", risk_tier=\"MODERATE\"}[$__rate_interval]))",
           "legendFormat": "MODERATE",
           "refId": "B",
           "range": true,
@@ -2567,7 +2567,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (risk_tier) (increase(student_dropout_predictions_total{job=~\"$job\", instance=~\"$instance\", risk_tier=\"HIGH\"}[$__interval]))",
+          "expr": "sum by (risk_tier) (increase(student_dropout_predictions_total{job=~\"$job\", instance=~\"$instance\", risk_tier=\"HIGH\"}[$__rate_interval]))",
           "legendFormat": "HIGH",
           "refId": "C",
           "range": true,
@@ -2581,7 +2581,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (risk_tier) (increase(student_dropout_predictions_total{job=~\"$job\", instance=~\"$instance\", risk_tier=\"CRITICAL\"}[$__interval]))",
+          "expr": "sum by (risk_tier) (increase(student_dropout_predictions_total{job=~\"$job\", instance=~\"$instance\", risk_tier=\"CRITICAL\"}[$__rate_interval]))",
           "legendFormat": "CRITICAL",
           "refId": "D",
           "range": true,
@@ -2734,7 +2734,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (le) (increase(student_dropout_risk_probability_bucket{job=~\"$job\", instance=~\"$instance\"}[$__interval]))",
+          "expr": "sum by (le) (increase(student_dropout_risk_probability_bucket{job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "{{le}}",
           "refId": "A",
           "range": true,

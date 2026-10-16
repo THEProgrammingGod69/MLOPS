@@ -88,7 +88,10 @@ async def add_process_time_header(request, call_next):
 
 
 @app.get("/")
-def read_root():
+def read_root(request: Request):
+    # Browsers land on the web UI; API clients (and the original contract) get the JSON banner.
+    if os.path.isdir(settings.ui_dist_dir) and "text/html" in request.headers.get("accept", ""):
+        return RedirectResponse(url=f"{UI_PREFIX}/")
     return {
         "service": SERVICE_NAME,
         "version": SERVICE_VERSION,
