@@ -18,6 +18,12 @@ http {
   proxy_read_timeout 120s;
   server {
     listen __PORT__;
+    error_page 502 503 504 = @starting;
+    location @starting {
+      default_type text/html;
+      add_header Cache-Control no-store always;
+      return 503 '<!doctype html><meta charset=utf-8><meta http-equiv=refresh content=3><title>Starting</title><body style="background:#0b0f17;color:#cbd5e1;font:16px system-ui;display:grid;place-items:center;height:100vh;margin:0"><div>Service is waking up &hellip; this page refreshes automatically.</div>';
+    }
     location = /grafana { return 302 /grafana/; }
     location /grafana/ {
       proxy_pass http://127.0.0.1:3300;

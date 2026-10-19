@@ -17,5 +17,11 @@ PORT=8000 sh scripts/start-api.sh &
 GF_PATHS_DATA=/tmp/grafana/data GF_PATHS_LOGS=/tmp/grafana/logs GF_PATHS_PLUGINS=/tmp/grafana/plugins \
   /opt/grafana/bin/grafana server --homepath /opt/grafana &
 
+# Accept traffic only once the API can answer (cold starts take ~20-30 s); Grafana and
+# Prometheus finish booting behind nginx's auto-refreshing "starting" page.
+i=0
+until python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)" 2>/dev/null; do
+  i=$((i+1)); [ "$i" -ge 120 ] && break; sleep 0.5
+done
 sed "s/__PORT__/${PORT}/" deploy/vercel/nginx.conf.template > /tmp/nginx.conf
 exec nginx -c /tmp/nginx.conf -g 'daemon off;'
