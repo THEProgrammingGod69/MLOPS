@@ -21,6 +21,7 @@ http {
   proxy_read_timeout 120s;
   server {
     listen __PORT__;
+    absolute_redirect off;  # relative Location headers keep the public https scheme
     error_page 502 503 504 = @starting;
     location @starting {
       default_type text/html;
