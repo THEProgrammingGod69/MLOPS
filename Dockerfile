@@ -1,4 +1,9 @@
-# ---- web UI (served by FastAPI at /ui; docker-compose also runs it behind nginx) ----
+# deploy/vercel branch: ALL-IN-ONE public demo image (one port).
+#   /            web UI + FastAPI (+ built-in demo traffic)
+#   /grafana/    Grafana (anonymous viewer, provisioned 66-panel dashboard)
+#   /prometheus/ Prometheus (scrapes the API, evaluates the 9 alert rules)
+# The model is a schema-faithful DEMO stand-in trained at build time
+# (deploy/vercel/make_demo_model.py): the real OULAD artifacts are not in git.
 FROM node:22-alpine AS ui
 WORKDIR /ui
 COPY frontend/package.json frontend/package-lock.json ./
@@ -6,47 +11,48 @@ RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
 RUN npm run build
 
-# ---- API -----------------------------------------------------------------------
 FROM python:3.10-slim
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+RUN apt-get update && apt-get install -y --no-install-recommends nginx curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+RUN mkdir -p /opt/prometheus /opt/grafana \
+ && curl -fsSL https://github.com/prometheus/prometheus/releases/download/v2.53.2/prometheus-2.53.2.linux-amd64.tar.gz \
+    | tar xz --strip-components=1 -C /opt/prometheus \
+ && curl -fsSL https://dl.grafana.com/oss/release/grafana-11.2.2.linux-amd64.tar.gz \
+    | tar xz --strip-components=1 -C /opt/grafana
 WORKDIR /app
-
-# Copy dependency list
 COPY requirements-api.txt .
-
-# Install dependencies
 RUN pip install --no-cache-dir -r requirements-api.txt
-
-# SHAP 0.49.1 + XGBoost >=2.1 compatibility patch for base_score JSON string parsing.
-# (The previous multi-line version was a Python SyntaxError: line continuations joined
-# "with" statements onto one line.) Without the patch the API falls back to XGBoost's
-# native TreeSHAP, which returns identical values.
-RUN python -c "import pathlib, shap; p = pathlib.Path(shap.__file__).parent / 'explainers' / '_tree.py'; s = p.read_text(encoding='utf-8'); old = 'float(learner_model_param[\"base_score\"])'; p.write_text(s.replace(old, 'float(str(learner_model_param[\"base_score\"]).strip(\"[]\"))'), encoding='utf-8'); print('shap base_score patch applied to', s.count(old), 'location(s)')"
-
-# Application code, configuration (incl. the drift reference profile) and the offline
-# evaluation reports that feed /api/v1/insights and the Grafana offline-metrics panels.
+RUN python -c "import pathlib, shap; p = pathlib.Path(shap.__file__).parent / 'explainers' / '_tree.py'; s = p.read_text(encoding='utf-8'); old = 'float(learner_model_param[\"base_score\"])'; p.write_text(s.replace(old, 'float(str(learner_model_param[\"base_score\"]).strip(\"[]\"))'), encoding='utf-8')"
 COPY configs/ configs/
 COPY src/ src/
 COPY reports/ reports/
 COPY scripts/ scripts/
+COPY deploy/vercel/ deploy/vercel/
 COPY --from=ui /ui/dist frontend/dist
+RUN python deploy/vercel/make_demo_model.py
 
-# Model artifacts: .dockerignore keeps only the served XGBoost pipeline and the
-# fairness post-processor (if present) from models/.
-COPY models/ models/
+# Monitoring configuration, rewritten for the single-host layout
+COPY monitoring/ /opt/monitoring-src/
+RUN mkdir -p /opt/monitoring/provisioning \
+ && sed -e 's#api:8000#127.0.0.1:8000#' -e 's#/etc/prometheus/alerts.yml#/opt/monitoring-src/prometheus/alerts.yml#' \
+        -e 's#environment: "docker"#environment: "vercel"#' \
+        /opt/monitoring-src/prometheus/prometheus.docker.yml > /opt/monitoring/prometheus.yml \
+ && cp -r /opt/monitoring-src/grafana/provisioning/* /opt/monitoring/provisioning/ \
+ && sed -i 's#http://prometheus:9090#http://127.0.0.1:9090/prometheus#' /opt/monitoring/provisioning/datasources/prometheus.yml \
+ && sed -i 's#/var/lib/grafana/dashboards#/opt/monitoring-src/grafana/dashboards#' /opt/monitoring/provisioning/dashboards/dashboards.yml \
+ && /opt/prometheus/promtool check config /opt/monitoring/prometheus.yml
 
-# Non-root user setup for security
-RUN useradd -m apiuser && chown -R apiuser:apiuser /app
-USER apiuser
-
-# Expose port and start FastAPI server
-EXPOSE 8000
-HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=3 \
-    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:' + __import__('os').environ.get('PORT', '8000') + '/health', timeout=4).status == 200 else 1)"
-# PORT is honoured for PaaS hosts (Render, Railway); DEMO_TRAFFIC_RPS > 0 starts the
-# built-in traffic simulator so dashboards have live data (see scripts/start-api.sh).
-CMD ["sh", "scripts/start-api.sh"]
+ENV GRAFANA_URL=/grafana PROMETHEUS_URL=/prometheus \
+    DEMO_TRAFFIC_RPS=3 SIM_SCHEDULE=normal:900,engagement-drop:600 \
+    GF_PATHS_PROVISIONING=/opt/monitoring/provisioning \
+    GF_SERVER_HTTP_ADDR=127.0.0.1 GF_SERVER_HTTP_PORT=3300 \
+    GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/ GF_SERVER_SERVE_FROM_SUB_PATH=true \
+    GF_AUTH_ANONYMOUS_ENABLED=true GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer GF_AUTH_DISABLE_LOGIN_FORM=true \
+    GF_USERS_DEFAULT_THEME=dark GF_USERS_ALLOW_SIGN_UP=false \
+    GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/opt/monitoring-src/grafana/dashboards/prediction_dashboard.json \
+    GF_ANALYTICS_REPORTING_ENABLED=false GF_ANALYTICS_CHECK_FOR_UPDATES=false \
+    GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false GF_PLUGINS_PUBLIC_KEY_RETRIEVAL_DISABLED=true \
+    GF_NEWS_NEWS_FEED_ENABLED=false PORT=8080
+EXPOSE 8080
+CMD ["sh", "deploy/vercel/start-all.sh"]
