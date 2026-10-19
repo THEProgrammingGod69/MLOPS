@@ -6,6 +6,8 @@ PORT="${PORT:-8080}"
 GF_SECURITY_ADMIN_PASSWORD="$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 export GF_SECURITY_ADMIN_PASSWORD
 mkdir -p /tmp/prometheus /tmp/grafana/data /tmp/grafana/logs /tmp/grafana/plugins
+# Grafana's database was migrated and provisioned at build time; copying it skips ~10 s of boot.
+cp -a /opt/grafana-seed/. /tmp/grafana/data/ 2>/dev/null || true
 
 PORT=8000 sh scripts/start-api.sh &
 
@@ -23,5 +25,7 @@ i=0
 until python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)" 2>/dev/null; do
   i=$((i+1)); [ "$i" -ge 120 ] && break; sleep 0.5
 done
+python deploy/vercel/seed_traffic.py &
+
 sed "s/__PORT__/${PORT}/" deploy/vercel/nginx.conf.template > /tmp/nginx.conf
 exec nginx -c /tmp/nginx.conf -g 'daemon off;'

@@ -53,6 +53,14 @@ ENV GRAFANA_URL=/grafana PROMETHEUS_URL=/prometheus \
     GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/opt/monitoring-src/grafana/dashboards/prediction_dashboard.json \
     GF_ANALYTICS_REPORTING_ENABLED=false GF_ANALYTICS_CHECK_FOR_UPDATES=false \
     GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false GF_PLUGINS_PUBLIC_KEY_RETRIEVAL_DISABLED=true \
-    GF_NEWS_NEWS_FEED_ENABLED=false PORT=8080
+    GF_NEWS_NEWS_FEED_ENABLED=false GF_LIVE_MAX_CONNECTIONS=0 \
+    GF_DASHBOARDS_MIN_REFRESH_INTERVAL=10s PORT=8080
+# Run Grafana's schema migrations and provisioning once at build time (copied to /tmp at boot).
+RUN mkdir -p /opt/grafana-seed /tmp/gl /tmp/gp \
+ && GF_PATHS_DATA=/opt/grafana-seed GF_PATHS_LOGS=/tmp/gl GF_PATHS_PLUGINS=/tmp/gp \
+    /opt/grafana/bin/grafana server --homepath /opt/grafana > /tmp/grafana-build.log 2>&1 & GPID=$! \
+ ; for i in $(seq 1 120); do curl -fs http://127.0.0.1:3300/grafana/api/health >/dev/null && break; sleep 1; done \
+ ; curl -fs http://127.0.0.1:3300/grafana/api/search | grep -q mlops-monitoring || { tail -40 /tmp/grafana-build.log; exit 1; } \
+ ; kill $GPID; sleep 2; ls -la /opt/grafana-seed
 EXPOSE 8080
 CMD ["sh", "deploy/vercel/start-all.sh"]

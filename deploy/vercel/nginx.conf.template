@@ -5,6 +5,9 @@ error_log /dev/stderr warn;
 events { worker_connections 512; }
 http {
   access_log off;
+  include /etc/nginx/mime.types;
+  gzip on;
+  gzip_types text/css application/javascript application/json image/svg+xml;
   client_body_temp_path /tmp/nginx-body;
   proxy_temp_path /tmp/nginx-proxy;
   fastcgi_temp_path /tmp/nginx-fastcgi;
@@ -30,7 +33,17 @@ http {
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection $connection_upgrade;
     }
+    # Static UI straight from disk: no Python round-trip, so page loads never queue behind the API.
+    location /ui/ {
+      alias /app/frontend/dist/;
+      index index.html;
+      location /ui/assets/ { alias /app/frontend/dist/assets/; expires 7d; add_header Cache-Control "public, immutable"; }
+    }
     location = /prometheus { return 302 /prometheus/; }
+    # The bare Prometheus UI is an empty query box; open it on the key live series instead.
+    location = /prometheus/ {
+      return 302 '/prometheus/graph?g0.expr=sum(rate(student_dropout_predictions_total%5B1m%5D))&g0.tab=0&g0.range_input=15m&g1.expr=student_dropout_window_mean_risk&g1.tab=0&g1.range_input=15m&g2.expr=student_dropout_drifted_features&g2.tab=0&g2.range_input=15m&g3.expr=up&g3.tab=1';
+    }
     location /prometheus/ { proxy_pass http://127.0.0.1:9090; }
     location / { proxy_pass http://127.0.0.1:8000; }
   }
