@@ -14,7 +14,7 @@ The fix makes a cold start invisible rather than trying to prevent it:
 |---|---|
 | nginx opens first | The UI renders at once; Grafana and Prometheus show a self-refreshing page until ready |
 | Prometheus waits for the API | `up` never records a false 0 |
-| `record_history.py` at build, `replay_history.py` at boot | Every instance opens with one hour of charts |
+| `record_history.py` at build, `replay_history.py` at boot (Prometheus remote write) | Every instance opens with about an hour of charts |
 | Browser keeps open cases | They are restored whenever the UI notices a new instance |
 
 The replayed hour is real model scoring of simulated students, captured at build time. Anything

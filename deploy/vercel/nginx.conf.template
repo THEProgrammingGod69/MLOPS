@@ -48,6 +48,7 @@ http {
     location = /prometheus/ {
       return 302 '/prometheus/graph?g0.expr=student_dropout_alert_open&g0.tab=1&g1.expr=sum(rate(student_dropout_predictions_total%5B1m%5D))&g1.tab=0&g1.range_input=30m&g2.expr=student_dropout_window_mean_risk&g2.tab=0&g2.range_input=30m&g3.expr=up&g3.tab=1';
     }
+    location = /prometheus/api/v1/write { return 403; }  # the receiver is for the boot-time replay only
     location /prometheus/ {
       if (!-f /tmp/stack-ready) { return 503; }
       proxy_pass http://127.0.0.1:9090;

@@ -59,10 +59,12 @@ def publish_service_state() -> None:
     })
 
 
-def record_predictions(results: List[dict], source: str, latency_seconds: Optional[float] = None) -> None:
+def record_predictions(results: List[dict], source: str, latency_seconds: Optional[float] = None,
+                       export: bool = True) -> None:
+    """``export=False`` feeds the live monitor only (boot-time seeding must not look like a traffic spike)."""
     explanation_seconds = 0.0
     explained_backend = None
-    for result in results:
+    for result in (results if export else []):
         m.PREDICTIONS.labels(risk_tier=result["risk_tier"], source=source).inc()
         m.INTERVENTIONS.labels(intervention_level=result["intervention_level"]).inc()
         m.RISK_PROBABILITY.observe(result["risk_probability"])

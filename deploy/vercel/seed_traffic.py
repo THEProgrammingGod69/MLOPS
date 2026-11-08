@@ -12,6 +12,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, "scripts")
+os.environ["SIM_ORIGIN"] = "seed"  # fills the drift window without inflating traffic counters
 import simulate_traffic as sim  # noqa: E402
 
 BASE = os.environ.get("SEED_URL", "http://127.0.0.1:8000")

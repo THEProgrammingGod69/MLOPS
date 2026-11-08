@@ -177,12 +177,12 @@ def add_top_drivers(students, results: List[dict]) -> None:
 
 
 def raise_alerts(results: List[dict], origin: str, references: Optional[List[Optional[str]]] = None,
-                 cohort: Optional[str] = None) -> List[dict]:
+                 cohort: Optional[str] = None, count_metric: bool = True) -> List[dict]:
     """Open a case for every result at or above the threshold; returns the opened cases."""
     opened = []
     for index, result in enumerate(results):
         reference = references[index] if references else None
-        case = alert_desk.raise_case(result, origin, reference=reference, cohort=cohort)
+        case = alert_desk.raise_case(result, origin, reference=reference, cohort=cohort, count_metric=count_metric)
         if case is not None:
             opened.append(case)
     return opened

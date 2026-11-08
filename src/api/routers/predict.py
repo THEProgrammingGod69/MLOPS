@@ -24,7 +24,7 @@ def _v1_payload(result: dict, latency_ms: float) -> dict:
 
 
 def _origin(request: Request) -> str:
-    return "simulator" if request.headers.get("x-traffic-origin", "").lower() == "simulator" else "user"
+    return "simulator" if request.headers.get("x-traffic-origin", "").lower() in ("simulator", "seed") else "user"
 
 
 @router.post("/predict", response_model=PredictionResponseV1)
@@ -67,9 +67,11 @@ def predict_batch(http: Request, request: BatchPredictionRequest):
     elapsed = time.perf_counter() - started
     m.BATCH_SIZE.observe(len(results))
     m.BATCH_LATENCY.observe(elapsed)
-    record_predictions(results, source="batch")
+    seeding = http.headers.get("x-traffic-origin", "").lower() == "seed"
+    record_predictions(results, source="batch", export=not seeding)
     add_top_drivers(request.students, results)
-    raise_alerts(results, _origin(http), references=[s.record_id for s in request.students], cohort="batch upload")
+    raise_alerts(results, "simulator" if seeding else _origin(http), references=[s.record_id for s in request.students],
+                 cohort="batch upload", count_metric=not seeding)
 
     rows = []
     for index, (student, result) in enumerate(zip(request.students, results)):
