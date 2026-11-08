@@ -12,7 +12,8 @@ The fix makes a cold start invisible rather than trying to prevent it:
 
 | Step | Effect |
 |---|---|
-| nginx opens first | The UI renders at once; Grafana and Prometheus show a self-refreshing page until ready |
+| nginx opens the port last | Vercel holds requests until then, so a booting instance never answers "not ready" |
+| Static files cached at the CDN | The UI shell and Grafana's JavaScript load without waiting for a container |
 | Prometheus waits for the API | `up` never records a false 0 |
 | `record_history.py` at build, `replay_history.py` at boot (Prometheus remote write) | Every instance opens with about an hour of charts |
 | Browser keeps open cases | They are restored whenever the UI notices a new instance |

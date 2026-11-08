@@ -66,5 +66,7 @@ RUN mkdir -p /opt/grafana-seed /tmp/gl /tmp/gp \
  ; for i in $(seq 1 120); do curl -fs http://127.0.0.1:3300/grafana/api/health >/dev/null && break; sleep 1; done \
  ; curl -fs http://127.0.0.1:3300/grafana/api/search | grep -q mlops-monitoring || { tail -40 /tmp/grafana-build.log; exit 1; } \
  ; kill $GPID; sleep 2; ls -la /opt/grafana-seed
+# A malformed proxy config must fail the build, leaving the current production deployment in place.
+RUN sed 's/__PORT__/8080/' deploy/vercel/nginx.conf.template > /tmp/nginx-check.conf && nginx -t -c /tmp/nginx-check.conf
 EXPOSE 8080
 CMD ["sh", "deploy/vercel/start-all.sh"]

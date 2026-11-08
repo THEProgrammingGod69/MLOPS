@@ -31,17 +31,23 @@ http {
       return 503 '<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta http-equiv=refresh content=3><title>Warming up</title><body style="margin:0;height:100vh;display:grid;place-items:center;background:#f4efe4;color:#16130f;font:17px Georgia,serif;text-align:center"><div style="padding:24px"><div style="font:600 12px ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#c8321c">Cold start</div><h1 style="font:500 34px Georgia,serif;margin:10px 0">The stack is waking up.</h1><p style="margin:0;color:#5c554a">Free hosting sleeps when nobody is looking. This page opens by itself in about 15 seconds.</p></div>';
     }
     location = /grafana { return 302 /grafana/; }
+    # Fingerprinted Grafana assets straight from disk, cached at the CDN: a page never loses a
+    # chunk to a container that is busy or was just replaced.
+    location ~ ^/grafana/public/(build|img|fonts|lib)/(.*)$ {
+      alias /opt/grafana/public/$1/$2;
+      add_header Cache-Control "public, max-age=604800, s-maxage=604800, immutable";
+    }
     location /grafana/ {
-      if (!-f /tmp/stack-ready) { return 503; }
       proxy_pass http://127.0.0.1:3300;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection $connection_upgrade;
     }
-    # Static UI straight from disk: renders at once, even while the API is still loading the model.
+    # Static UI from disk, cached at the CDN: the shell renders at once even when no container is awake.
     location /ui/ {
       alias /app/frontend/dist/;
       index index.html;
-      location /ui/assets/ { alias /app/frontend/dist/assets/; expires 7d; add_header Cache-Control "public, immutable"; }
+      add_header Cache-Control "public, max-age=0, s-maxage=60, stale-while-revalidate=86400";
+      location /ui/assets/ { alias /app/frontend/dist/assets/; add_header Cache-Control "public, max-age=604800, s-maxage=604800, immutable"; }
     }
     location = /prometheus { return 302 /prometheus/; }
     # The bare Prometheus UI is an empty query box; open it on the key live series instead.
@@ -50,7 +56,6 @@ http {
     }
     location = /prometheus/api/v1/write { return 403; }  # the receiver is for the boot-time replay only
     location /prometheus/ {
-      if (!-f /tmp/stack-ready) { return 503; }
       proxy_pass http://127.0.0.1:9090;
     }
     location = / { return 302 /ui/; }

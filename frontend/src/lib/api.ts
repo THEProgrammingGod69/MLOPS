@@ -26,6 +26,7 @@ function describe(detail: unknown): string {
   return "Unexpected error";
 }
 
+let pingInFlight: Promise<Health> | null = null;
 const WAKING = new Set([502, 503, 504]);
 const WAKE_RETRIES = 14;
 const pause = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -67,10 +68,16 @@ export const api = {
   meta: () => request<Meta>("/meta"),
   model: () => request<ModelCard>("/model"),
   schema: () => request<SchemaPayload>("/schema"),
-  ping: async () => {
-    const response = await fetch(`${BASE}/health`);
-    if (!response.ok) throw new ApiError(response.status, "warming");
-    return (await response.json()) as Health;
+  ping: () => {
+    // The host holds this request while a container boots. One at a time, or the queue of
+    // polls would make it start several containers for a single visitor.
+    pingInFlight ??= fetch(`${BASE}/health`)
+      .then(async (response) => {
+        if (!response.ok) throw new ApiError(response.status, "warming");
+        return (await response.json()) as Health;
+      })
+      .finally(() => { pingInFlight = null; });
+    return pingInFlight;
   },
   predict: (features: FeatureRecord, explain = true, reference?: string) =>
     request<Prediction>(`/predict?include_explanation=${explain}${reference ? `&student_reference=${encodeURIComponent(reference)}` : ""}`,
