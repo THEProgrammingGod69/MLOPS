@@ -42,8 +42,10 @@ def predict(request: Request, features: PredictiveFeatures, include_explanation:
     elapsed = time.perf_counter() - started
     m.PREDICTION_LATENCY.observe(elapsed)
     record_predictions([result], source="single", latency_seconds=elapsed)
-    add_top_drivers([features], [result])
-    opened = raise_alerts([result], _origin(request), references=[student_reference], cohort=cohort)
+    opened = []
+    if _origin(request) == "user":  # background traffic differs per instance, so it never opens cases
+        add_top_drivers([features], [result])
+        opened = raise_alerts([result], "user", references=[student_reference], cohort=cohort)
     payload = _v1_payload(result, elapsed * 1000)
     payload["alert"] = opened[0] if opened else None
     return payload
@@ -69,9 +71,10 @@ def predict_batch(http: Request, request: BatchPredictionRequest):
     m.BATCH_LATENCY.observe(elapsed)
     seeding = http.headers.get("x-traffic-origin", "").lower() == "seed"
     record_predictions(results, source="batch", export=not seeding)
-    add_top_drivers(request.students, results)
-    raise_alerts(results, "simulator" if seeding else _origin(http), references=[s.record_id for s in request.students],
-                 cohort="batch upload", count_metric=not seeding)
+    if seeding or _origin(http) == "user":
+        add_top_drivers(request.students, results)
+        raise_alerts(results, "simulator" if seeding else "user", references=[s.record_id for s in request.students],
+                     cohort="demo stream" if seeding else "batch upload", count_metric=not seeding)
 
     rows = []
     for index, (student, result) in enumerate(zip(request.students, results)):

@@ -17,6 +17,8 @@ The fix makes a cold start invisible rather than trying to prevent it:
 | Prometheus waits for the API | `up` never records a false 0 |
 | `record_history.py` at build, `replay_history.py` at boot (Prometheus remote write) | Every instance opens with about an hour of charts |
 | Browser keeps open cases | They are restored whenever the UI notices a new instance |
+| `src/api/alert_sync.py` | Vercel spreads requests across several containers and offers no cap or sticky routing, so instances exchange real users' cases through the public URL, only while someone is visiting |
+| Deterministic demo cases | Every instance opens the same demo rows, so tables do not change between refreshes |
 
 The replayed hour is real model scoring of simulated students, captured at build time. Anything
 after boot is live. Long-term history still needs an always-on host.
@@ -28,7 +30,7 @@ batch, the adapter or the legacy API. Cases are exported as `student_dropout_ale
 `StudentDropoutRiskAbove50` in `monitoring/prometheus/alerts.yml` and fills the first row of the Grafana
 dashboard.
 
-- Student labels are salted pseudonyms (`S-3F9A1C`). The real reference stays in the API response.
+- The server stores only salted pseudonyms (`S-3F9A1C`). A real reference is returned once to whoever submitted it and stays in their browser.
 - Label cardinality is bounded: 200 user cases and 12 simulator cases.
 - Acknowledging a case on the alert desk removes its series.
 

@@ -48,6 +48,7 @@ RUN mkdir -p /opt/monitoring/provisioning \
  && /opt/prometheus/promtool check config /opt/monitoring/prometheus.yml
 
 ENV GRAFANA_URL=/grafana PROMETHEUS_URL=/prometheus \
+    ALERT_SYNC_URL=https://mlops-ews.vercel.app \
     DEMO_TRAFFIC_RPS=2 SIM_SCHEDULE=normal:900,engagement-drop:600 \
     GF_PATHS_PROVISIONING=/opt/monitoring/provisioning \
     GF_SERVER_HTTP_ADDR=127.0.0.1 GF_SERVER_HTTP_PORT=3300 \

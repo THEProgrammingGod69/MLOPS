@@ -213,7 +213,7 @@ export interface RecentPrediction {
 export interface AlertCase {
   id: string;
   ref: string;
-  reference: string | null;
+  reference?: string | null; // only in the response to the person who submitted the student
   risk_probability: number;
   risk_tier: RiskTier;
   intervention_level: string;

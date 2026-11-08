@@ -26,6 +26,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.api.inference import inference_service
+from src.api import alert_sync
 from src.api.alert_desk import raise_alerts
 from src.api.routers import insights, lab as lab_v1, monitoring, predict as predict_v1, system
 from src.api.schemas import HealthResponse, PredictionResponse, PredictiveFeatures
@@ -68,6 +69,8 @@ def _route_label(request: Request) -> str:
 @app.middleware("http")
 async def add_process_time_header(request, call_next):
     path = request.url.path
+    if "x-forwarded-for" in request.headers and "x-alert-sync" not in request.headers:
+        alert_sync.touch()  # a visitor is here: keep this instance's cases in step with its peers
     if path in UNTRACKED_PATHS:
         return await call_next(request)
     start_time = time.time()
@@ -139,6 +142,7 @@ app.include_router(predict_v1.router)
 app.include_router(insights.router)
 app.include_router(monitoring.router)
 app.include_router(lab_v1.router)
+alert_sync.start()
 
 if os.path.isdir(settings.ui_dist_dir):
     @app.get(UI_PREFIX, include_in_schema=False)

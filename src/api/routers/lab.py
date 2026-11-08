@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from src.adapter import mapper
 from src.adapter.vocabulary import TARGETS
-from src.api import lab
+from src.api import alert_sync, lab
 from src.api.alert_desk import add_top_drivers, alert_desk, raise_alerts
 from src.api.feature_catalog import feature_label
 from src.api.inference import inference_service
@@ -51,6 +51,13 @@ class RestoreRequest(BaseModel):
     cases: List[dict] = Field(default_factory=list, max_length=200)
 
 
+class SyncRequest(RestoreRequest):
+    acknowledged: List[dict] = Field(default_factory=list, max_length=200)
+
+
+CASE_FIELDS = {"ref", "risk_probability", "risk_tier", "intervention_level"}
+
+
 @router.get("/alerts")
 def list_alerts(limit: int = 100):
     return alert_desk.snapshot(limit=min(limit, 200))
@@ -58,16 +65,26 @@ def list_alerts(limit: int = 100):
 
 @router.post("/alerts/{case_id}/acknowledge")
 def acknowledge_alert(case_id: str, body: AckRequest):
-    case = alert_desk.acknowledge(case_id, body.assignee, body.note)
-    if case is None:
-        raise HTTPException(status_code=404, detail="Case not found or already acknowledged")
-    return case
+    return alert_desk.acknowledge(case_id, body.assignee, body.note) or alert_desk.acknowledge_unknown(case_id, body.assignee, body.note)
 
 
 @router.post("/alerts/restore")
 def restore_alerts(body: RestoreRequest):
-    valid = [c for c in body.cases if {"ref", "risk_probability", "risk_tier", "intervention_level"} <= set(c)]
+    valid = [c for c in body.cases if CASE_FIELDS <= set(c)]
     return {"restored": alert_desk.restore(valid)}
+
+
+@router.post("/alerts/sync", include_in_schema=False)
+def sync_alerts(body: SyncRequest):
+    """Instance-to-instance agreement on real users' cases (see src/api/alert_sync.py)."""
+    alert_desk.merge({"cases": [c for c in body.cases if CASE_FIELDS <= set(c)], "acknowledged": [c for c in body.acknowledged if "ref" in c and "acknowledged_at" in c]})
+    return alert_desk.sync_state()
+
+
+@router.get("/touch", include_in_schema=False, status_code=204)
+def touch():
+    """nginx mirrors Grafana traffic here, so sync also runs while only Grafana is open."""
+    alert_sync.touch()
 
 
 # ------------------------------------------------------------------------------- adapter

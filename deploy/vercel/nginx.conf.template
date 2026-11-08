@@ -37,7 +37,16 @@ http {
       alias /opt/grafana/public/$1/$2;
       add_header Cache-Control "public, max-age=604800, s-maxage=604800, immutable";
     }
+    location = /__touch {
+      internal;
+      proxy_pass http://127.0.0.1:8000/api/v1/touch;
+      proxy_pass_request_body off;
+      proxy_set_header Content-Length "";
+      proxy_set_header X-Alert-Sync 1;
+    }
     location /grafana/ {
+      mirror /__touch;
+      mirror_request_body off;
       proxy_pass http://127.0.0.1:3300;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection $connection_upgrade;

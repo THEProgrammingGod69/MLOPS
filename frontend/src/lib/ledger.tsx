@@ -5,6 +5,7 @@ import type { AdapterResult, AlertCase, AlertSnapshot } from "./types";
 
 const CASES_KEY = "ew-cases-v1";
 const COHORT_KEY = "ew-cohort-v1";
+const NAMES_KEY = "ew-names-v1"; // pseudonym -> the id this user typed; never leaves the browser
 
 function readJson<T>(key: string): T | null {
   try {
@@ -18,13 +19,15 @@ function readJson<T>(key: string): T | null {
 interface LedgerValue {
   snapshot: AlertSnapshot | null;
   cohort: AdapterResult | null;
+  names: Record<string, string>;
+  remember: (cases: AlertCase[]) => void;
   setCohort: (result: AdapterResult) => void;
   refresh: () => void;
   acknowledge: (id: string, assignee: string, note: string) => Promise<void>;
 }
 
 const Ledger = createContext<LedgerValue>({
-  snapshot: null, cohort: null, setCohort: () => undefined, refresh: () => undefined, acknowledge: async () => undefined,
+  snapshot: null, cohort: null, names: {}, remember: () => undefined, setCohort: () => undefined, refresh: () => undefined, acknowledge: async () => undefined,
 });
 
 export const useLedger = () => useContext(Ledger);
@@ -37,6 +40,7 @@ export const useLedger = () => useContext(Ledger);
 export function LedgerProvider({ instance, children }: { instance: number | undefined; children: ReactNode }) {
   const [snapshot, setSnapshot] = useState<AlertSnapshot | null>(null);
   const [cohort, setCohortState] = useState<AdapterResult | null>(() => readJson<AdapterResult>(COHORT_KEY));
+  const [names, setNames] = useState<Record<string, string>>(() => readJson<Record<string, string>>(NAMES_KEY) ?? {});
   const kept = useRef<AlertCase[]>(readJson<AlertCase[]>(CASES_KEY) ?? []);
   const lastInstance = useRef<number | undefined>(undefined);
 
@@ -69,20 +73,32 @@ export function LedgerProvider({ instance, children }: { instance: number | unde
     return () => window.clearInterval(id);
   }, [refresh]);
 
+  const remember = useCallback((cases: AlertCase[]) => {
+    setNames((current) => {
+      const next = { ...current };
+      for (const c of cases) if (c.reference) next[c.ref] = c.reference;
+      safeStorageSet(NAMES_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   const value = useMemo<LedgerValue>(() => ({
     snapshot,
     cohort,
+    names,
+    remember,
     refresh: () => void refresh(),
     setCohort: (result) => {
       setCohortState(result);
       safeStorageSet(COHORT_KEY, JSON.stringify(result));
+      remember(result.alerts);
       void refresh();
     },
     acknowledge: async (id, assignee, note) => {
       await api.acknowledge(id, assignee, note);
       await refresh();
     },
-  }), [snapshot, cohort, refresh]);
+  }), [snapshot, cohort, names, remember, refresh]);
 
   return <Ledger.Provider value={value}>{children}</Ledger.Provider>;
 }

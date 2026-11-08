@@ -7,8 +7,9 @@ per student and Grafana can list them.
 
 Two rings keep the label set bounded. Cases raised by real users are never pushed
 out by the traffic simulator, and the simulator can only ever occupy a few slots.
-Prometheus labels carry a salted pseudonym (``S-3F9A1C``), never the id the institution
-supplied: that stays in the API response for the person who uploaded it.
+The server stores and exports only a salted pseudonym (``S-3F9A1C``), never the id the
+institution supplied. The real id is returned once, to the person who submitted it, and stays
+in their browser. A case's id is its pseudonym, so it means the same thing on every instance.
 """
 import hashlib
 import os
@@ -68,31 +69,30 @@ class AlertDesk:
     # -- case lifecycle ---------------------------------------------------------------
     def raise_case(self, result: dict, origin: str, reference: Optional[str] = None,
                    cohort: Optional[str] = None, raised_at: Optional[float] = None,
-                   count_metric: bool = True) -> Optional[dict]:
+                   count_metric: bool = True, ref: Optional[str] = None, updated_at: Optional[float] = None) -> Optional[dict]:
         probability = float(result["risk_probability"])
         if probability < self.threshold:
             return None
         origin = origin if origin in ORIGINS else "user"
-        reference = reference or result.get("prediction_id") or uuid.uuid4().hex
-        ref = pseudonym(reference)
-        now = time.time() if raised_at is None else raised_at
+        ref = ref or pseudonym(reference or result.get("prediction_id") or uuid.uuid4().hex)
+        now = time.time()
         with self._lock:
             ring = self._open[origin]
             existing = ring.pop(ref, None)
             if existing is not None:
                 self._retire(existing)
+            self._acknowledged.pop(ref, None)  # scored again after being closed: it is a live case again
             case = {
-                "id": existing["id"] if existing else uuid.uuid4().hex[:12],
+                "id": ref,
                 "ref": ref,
-                "reference": reference if origin == "user" else None,
                 "risk_probability": round(probability, 4),
                 "risk_tier": result["risk_tier"],
                 "intervention_level": result["intervention_level"],
                 "top_driver": result.get("top_driver"),
                 "cohort": (cohort or "ad-hoc")[:40],
                 "origin": origin,
-                "raised_at": existing["raised_at"] if existing else now,
-                "updated_at": now,
+                "raised_at": existing["raised_at"] if existing else (now if raised_at is None else raised_at),
+                "updated_at": now if updated_at is None else updated_at,
                 "status": "open",
                 "assignee": None,
                 "note": None,
@@ -108,37 +108,84 @@ class AlertDesk:
             m.ALERTS_RAISED.labels(origin=origin).inc()
         return case
 
+    def _close(self, ring: "OrderedDict[str, dict]", case: dict, assignee, note, at: float) -> dict:
+        del ring[case["ref"]]
+        self._retire(case)
+        case.update(status="acknowledged", assignee=assignee or None, note=note or None, acknowledged_at=at)
+        self._acknowledged[case["ref"]] = case
+        while len(self._acknowledged) > USER_CAPACITY:
+            self._acknowledged.popitem(last=False)
+        self._refresh_gauges()
+        return case
+
     def acknowledge(self, case_id: str, assignee: Optional[str] = None, note: Optional[str] = None) -> Optional[dict]:
         with self._lock:
             for origin, ring in self._open.items():
-                for ref, case in ring.items():
-                    if case["id"] != case_id:
-                        continue
-                    del ring[ref]
-                    self._retire(case)
-                    now = time.time()
-                    case.update(status="acknowledged", assignee=(assignee or None), note=(note or None),
-                                acknowledged_at=now)
-                    self._acknowledged[case_id] = case
-                    while len(self._acknowledged) > USER_CAPACITY:
-                        self._acknowledged.popitem(last=False)
-                    m.ALERTS_ACKNOWLEDGED.labels(origin=origin).inc()
-                    m.ALERT_ACK_SECONDS.observe(max(0.0, now - case["raised_at"]))
-                    self._refresh_gauges()
-                    return case
+                case = ring.get(case_id)
+                if case is None:
+                    continue
+                now = time.time()
+                m.ALERTS_ACKNOWLEDGED.labels(origin=origin).inc()
+                m.ALERT_ACK_SECONDS.observe(max(0.0, now - case["raised_at"]))
+                return self._close(ring, case, assignee, note, now)
         return None
+
+    def acknowledge_unknown(self, case_id: str, assignee: Optional[str] = None, note: Optional[str] = None) -> dict:
+        """Acknowledge a case this instance has not heard of yet; sync carries it to the rest."""
+        with self._lock:
+            known = self._acknowledged.get(case_id)
+            if known is not None:
+                return known
+            now = time.time()
+            closed = {"id": case_id, "ref": case_id, "status": "acknowledged", "assignee": assignee or None, "note": note or None,
+                      "origin": "user", "acknowledged_at": now, "updated_at": now, "raised_at": now, "risk_probability": 0.0,
+                      "risk_tier": "CRITICAL", "intervention_level": "", "top_driver": None, "cohort": "ad-hoc"}
+            self._acknowledged[case_id] = closed
+            return closed
 
     def restore(self, cases: List[dict]) -> int:
         """Re-open cases a browser kept across a scale-to-zero restart (the server starts empty)."""
         restored = 0
         for item in cases[:USER_CAPACITY]:
-            result = {"risk_probability": item["risk_probability"], "risk_tier": item["risk_tier"],
-                      "intervention_level": item["intervention_level"], "top_driver": item.get("top_driver")}
-            case = self.raise_case(result, "user", reference=item.get("reference") or item["ref"],
-                                   cohort=item.get("cohort"), raised_at=item.get("raised_at"), count_metric=False)
-            if case is not None:
+            if item["ref"] in self._open["user"] or self._closed_after(item):
+                continue
+            if self._merge_case(item) is not None:
                 restored += 1
         return restored
+
+    # -- agreement between instances ----------------------------------------------------
+    def _closed_after(self, item: dict) -> bool:
+        closed = self._acknowledged.get(item["ref"])
+        return closed is not None and closed.get("acknowledged_at", 0) >= item.get("updated_at", 0)
+
+    def _merge_case(self, item: dict) -> Optional[dict]:
+        result = {"risk_probability": item["risk_probability"], "risk_tier": item["risk_tier"],
+                  "intervention_level": item["intervention_level"], "top_driver": item.get("top_driver")}
+        return self.raise_case(result, "user", ref=item["ref"], cohort=item.get("cohort"), raised_at=item.get("raised_at"),
+                               updated_at=item.get("updated_at"), count_metric=False)
+
+    def sync_state(self) -> dict:
+        with self._lock:
+            return {"cases": list(self._open["user"].values()), "acknowledged": list(self._acknowledged.values())}
+
+    def merge(self, state: dict) -> None:
+        """Adopt what a peer knows; the most recent change to a case wins."""
+        for closed in state.get("acknowledged", [])[:USER_CAPACITY]:
+            with self._lock:
+                ref = closed["ref"]
+                known = self._acknowledged.get(ref)
+                if known is not None and known.get("acknowledged_at", 0) >= closed.get("acknowledged_at", 0):
+                    continue
+                case = self._open["user"].get(ref)
+                if case is None:
+                    self._acknowledged[ref] = closed
+                elif case["updated_at"] <= closed.get("acknowledged_at", 0):
+                    self._close(self._open["user"], case, closed.get("assignee"), closed.get("note"), closed["acknowledged_at"])
+        for item in state.get("cases", [])[:USER_CAPACITY]:
+            existing = self._open["user"].get(item["ref"])
+            if (existing is not None and existing["updated_at"] >= item.get("updated_at", 0)) or self._closed_after(item):
+                continue
+            self._merge_case(item)
 
     # -- reads ------------------------------------------------------------------------
     def snapshot(self, limit: int = 100) -> dict:
@@ -178,11 +225,14 @@ def add_top_drivers(students, results: List[dict]) -> None:
 
 def raise_alerts(results: List[dict], origin: str, references: Optional[List[Optional[str]]] = None,
                  cohort: Optional[str] = None, count_metric: bool = True) -> List[dict]:
-    """Open a case for every result at or above the threshold; returns the opened cases."""
+    """Open a case for every result at or above the threshold.
+
+    Returns copies carrying the caller's own reference, for the response to that caller only.
+    """
     opened = []
     for index, result in enumerate(results):
         reference = references[index] if references else None
         case = alert_desk.raise_case(result, origin, reference=reference, cohort=cohort, count_metric=count_metric)
         if case is not None:
-            opened.append(case)
+            opened.append({**case, "reference": reference})
     return opened

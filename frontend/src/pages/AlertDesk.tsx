@@ -6,7 +6,7 @@ import { useLedger } from "../lib/ledger";
 import type { AlertCase } from "../lib/types";
 import { Empty, Segmented, TierBadge } from "../components/ui";
 
-function CaseSlip({ item, onAck }: { item: AlertCase; onAck: (assignee: string, note: string) => Promise<void> }) {
+function CaseSlip({ item, name, onAck }: { item: AlertCase; name?: string; onAck: (assignee: string, note: string) => Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [assignee, setAssignee] = useState("");
   const [note, setNote] = useState("");
@@ -16,7 +16,7 @@ function CaseSlip({ item, onAck }: { item: AlertCase; onAck: (assignee: string, 
       <div className="pct">{pct(item.risk_probability, 0)}</div>
       <div>
         <div className="row-wrap">
-          <h3>{item.reference ?? item.ref}</h3>
+          <h3>{name ?? item.ref}</h3>
           <TierBadge tier={item.risk_tier} />
           {item.origin === "simulator" && <span className="badge badge-neutral">Demo stream</span>}
         </div>
@@ -39,7 +39,7 @@ function CaseSlip({ item, onAck }: { item: AlertCase; onAck: (assignee: string, 
 }
 
 export default function AlertDesk() {
-  const { snapshot, acknowledge } = useLedger();
+  const { snapshot, acknowledge, names } = useLedger();
   const meta = useApi(api.meta);
   const [view, setView] = useState<"yours" | "all" | "closed">("yours");
   const grafana = meta.data?.links.grafana;
@@ -65,7 +65,7 @@ export default function AlertDesk() {
           <div className="table-wrap">
             <table className="table">
               <thead><tr><th>Student</th><th className="r">Risk</th><th>Assigned to</th><th>Note</th><th>Acknowledged</th></tr></thead>
-              <tbody>{snapshot!.acknowledged.map((c) => <tr key={c.id}><td>{c.reference ?? c.ref}</td><td className="r mono">{pct(c.risk_probability, 0)}</td><td>{c.assignee ?? "—"}</td><td className="secondary">{c.note ?? "—"}</td><td className="muted">{c.acknowledged_at ? timeAgo(c.acknowledged_at) : "—"}</td></tr>)}</tbody>
+              <tbody>{snapshot!.acknowledged.map((c) => <tr key={c.id}><td>{names[c.ref] ?? c.ref}</td><td className="r mono">{pct(c.risk_probability, 0)}</td><td>{c.assignee ?? "—"}</td><td className="secondary">{c.note ?? "—"}</td><td className="muted">{c.acknowledged_at ? timeAgo(c.acknowledged_at) : "—"}</td></tr>)}</tbody>
             </table>
           </div>
         )
@@ -74,7 +74,7 @@ export default function AlertDesk() {
           Run someone through the <a href="#/case">case file</a> or upload a cohort at <a href="#/intake">intake</a>. Anyone at {threshold} or above lands here.
         </Empty>
       ) : (
-        <div>{list.map((item) => <CaseSlip key={item.id} item={item} onAck={(a, n) => acknowledge(item.id, a, n)} />)}</div>
+        <div>{list.map((item) => <CaseSlip key={item.id} item={item} name={names[item.ref]} onAck={(a, n) => acknowledge(item.id, a, n)} />)}</div>
       )}
     </>
   );

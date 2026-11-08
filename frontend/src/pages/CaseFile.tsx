@@ -122,7 +122,7 @@ function RescueSection({ plan, loading }: { plan: RescuePlan | null; loading: bo
 
 export default function CaseFile() {
   const schema = useApi(api.schema);
-  const { refresh } = useLedger();
+  const { refresh, remember } = useLedger();
   const [form, setForm] = useState<FormState | null>(null);
   const [gender, setGender] = useState("");
   const [reference, setReference] = useState("");
@@ -157,6 +157,7 @@ export default function CaseFile() {
       const prediction = await api.predict(payload, true, reference.trim() || undefined);
       if (id !== requestId.current) return;
       setResult(prediction);
+      if (prediction.alert) remember([prediction.alert]);
       refresh();
       if (reveal) window.requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
       const rescue = await api.rescue(payload);

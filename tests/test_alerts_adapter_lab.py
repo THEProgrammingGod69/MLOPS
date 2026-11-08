@@ -6,7 +6,7 @@ import unittest
 
 import pandas as pd
 from fastapi.testclient import TestClient
-from prometheus_client import generate_latest
+from prometheus_client import REGISTRY, generate_latest
 
 from src.adapter import mapper
 from src.api.alert_desk import AlertDesk, pseudonym
@@ -72,6 +72,42 @@ class TestAlertDesk(unittest.TestCase):
         restored = fresh.snapshot()["open"][0]
         self.assertEqual(restored["ref"], case["ref"])
         self.assertEqual(restored["raised_at"], case["raised_at"])
+
+
+class TestInstanceAgreement(unittest.TestCase):
+    def setUp(self):
+        self.a, self.b = AlertDesk(threshold=0.5), AlertDesk(threshold=0.5)
+
+    def test_case_ids_match_across_instances(self):
+        self.assertEqual(self.a.raise_case(RESULT, "user", reference="s1")["id"], self.b.raise_case(RESULT, "user", reference="s1")["id"])
+
+    def test_case_spreads_to_a_peer(self):
+        self.a.raise_case(RESULT, "user", reference="s2")
+        self.b.merge(self.a.sync_state())
+        self.assertEqual(self.b.snapshot()["open_user_count"], 1)
+
+    def test_acknowledgement_spreads_and_is_not_undone_by_a_stale_peer(self):
+        case = self.a.raise_case(RESULT, "user", reference="s3")
+        self.b.merge(self.a.sync_state())
+        self.a.acknowledge(case["id"], "Advisor")
+        self.b.merge(self.a.sync_state())
+        self.assertEqual(self.b.snapshot()["open_user_count"], 0)
+        stale = AlertDesk(threshold=0.5)
+        stale.raise_case(RESULT, "user", reference="s3", updated_at=case["updated_at"])
+        self.a.merge(stale.sync_state())
+        self.assertEqual(self.a.snapshot()["open_user_count"], 0)
+
+    def test_a_later_rescore_reopens_a_closed_case(self):
+        case = self.a.raise_case(RESULT, "user", reference="s4")
+        self.a.acknowledge(case["id"])
+        self.assertIsNotNone(self.a.raise_case(RESULT, "user", reference="s4"))
+        self.assertEqual(self.a.snapshot()["open_user_count"], 1)
+
+    def test_merge_does_not_count_as_new_alerts(self):
+        self.a.raise_case(RESULT, "user", reference="s5", count_metric=False)
+        before = REGISTRY.get_sample_value("student_dropout_alerts_raised_total", {"origin": "user"}) or 0
+        self.b.merge(self.a.sync_state())
+        self.assertEqual(REGISTRY.get_sample_value("student_dropout_alerts_raised_total", {"origin": "user"}) or 0, before)
 
 
 class TestAdapterUnits(unittest.TestCase):
@@ -184,11 +220,21 @@ class TestApi(unittest.TestCase):
 
     def test_simulator_header_marks_origin(self):
         safe = re.sub(r"[^a-z]", "", "simulatedcohort")
-        self.client.post(f"/api/v1/predict?cohort={safe}", json=STUDENT, headers={"X-Traffic-Origin": "simulator"})
-        for case in self.client.get("/api/v1/alerts?limit=200").json()["open"]:
-            if case["cohort"] == safe:
-                self.assertEqual(case["origin"], "simulator")
-                self.assertIsNone(case["reference"])
+        body = self.client.post(f"/api/v1/predict?cohort={safe}", json=STUDENT, headers={"X-Traffic-Origin": "simulator"}).json()
+        self.assertIsNone(body["alert"])
+        self.assertFalse([c for c in self.client.get("/api/v1/alerts?limit=200").json()["open"] if c["cohort"] == safe])
+
+    def test_raw_student_ids_never_reach_the_public_alert_list(self):
+        reference = "ROLL-SECRET-77"
+        body = self.client.post(f"/api/v1/predict?student_reference={reference}", json=STUDENT).json()
+        if body["alert"]:
+            self.assertEqual(body["alert"]["reference"], reference)
+        self.assertNotIn(reference, self.client.get("/api/v1/alerts?limit=200").text)
+
+    def test_acknowledging_a_case_this_instance_never_saw_succeeds(self):
+        response = self.client.post("/api/v1/alerts/S-ABC123/acknowledge", json={"assignee": "A"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "acknowledged")
 
     def test_rescue_plan_is_ordered_and_never_raises_risk_overall(self):
         plan = self.client.post("/api/v1/lab/rescue", json={"student": STUDENT, "target": 0.05}).json()

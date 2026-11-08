@@ -21,7 +21,7 @@ SINGLES = int(os.environ.get("SEED_SINGLES", "60"))
 
 
 def main():
-    rng = random.Random()
+    rng = random.Random(2026)  # every instance must open the same demo cases, or dashboards flicker between them
     marginals, categories = sim.load_marginals("configs/drift_reference_profile.json",
                                                "reports/eda/numeric_summary.csv")
 
@@ -32,7 +32,7 @@ def main():
         return s
 
     batch_status = sim.post(f"{BASE}/api/v1/predict/batch",
-                            {"students": [student() for _ in range(BATCH_SIZE)]}, timeout=120)
+                            {"students": [{**student(), "record_id": f"demo-{i}"} for i in range(BATCH_SIZE)]}, timeout=120)
 
     def single(i):
         explain = "true" if i % 3 == 0 else "false"
