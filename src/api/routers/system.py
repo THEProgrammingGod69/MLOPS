@@ -22,6 +22,7 @@ def health():
         "version": SERVICE_VERSION,
         "model_version": inference_service.model_version,
         "uptime_seconds": round(time.time() - live_monitor.started_at, 1),
+        "instance_started_at": live_monitor.started_at,
         "components": inference_service.components,
     }
 

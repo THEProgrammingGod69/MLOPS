@@ -7,35 +7,35 @@ export type ThemeName = "light" | "dark";
 // checks in both modes; tiers use the fixed status palette and always ship with icon + label.
 const PALETTES = {
   light: {
-    series: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"],
-    grid: "#e1e0d9",
-    axis: "#c3c2b7",
-    text: "#52514e",
-    textStrong: "#0b0b0b",
-    muted: "#6f6e69",
-    surface: "#fcfcfb",
-    track: "#ebeae5",
-    increase: "#e34948",
-    decrease: "#2a78d6",
+    series: ["#22408c", "#c8321c", "#3f6b4a", "#b8801f", "#7d3f77", "#16130f", "#3d8c95", "#8a6d3b"],
+    grid: "#d9d0bc",
+    axis: "#a89e88",
+    text: "#4a443a",
+    textStrong: "#16130f",
+    muted: "#6d6555",
+    surface: "#f4efe4",
+    track: "#ded5c1",
+    increase: "#c8321c",
+    decrease: "#22408c",
   },
   dark: {
-    series: ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"],
-    grid: "#2c2c2a",
-    axis: "#383835",
-    text: "#c3c2b7",
-    textStrong: "#f0efec",
-    muted: "#9c9b95",
-    surface: "#1a1a19",
-    track: "#2c2c2a",
-    increase: "#e66767",
-    decrease: "#3987e5",
+    series: ["#8ba6ec", "#f0593b", "#79ad87", "#d9a441", "#c98cc2", "#efe8d8", "#6dbdc6", "#c4a875"],
+    grid: "#2f2a21",
+    axis: "#554d3f",
+    text: "#c4bba8",
+    textStrong: "#efe8d8",
+    muted: "#978e7b",
+    surface: "#14110d",
+    track: "#2b261e",
+    increase: "#f0593b",
+    decrease: "#8ba6ec",
   },
 } as const;
 
 /** First-render size for ResponsiveContainer until ResizeObserver measures the real box. */
 export const CHART_INIT = { width: 480, height: 240 };
 
-export const STATUS = { good: "#0ca30c", warning: "#fab219", serious: "#ec835a", critical: "#d03b3b" } as const;
+export const STATUS = { good: "#3f6b4a", warning: "#b8801f", serious: "#d2622a", critical: "#c8321c" } as const;
 
 export const TIER_COLOR: Record<RiskTier, string> = {
   LOW: STATUS.good,

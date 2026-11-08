@@ -112,6 +112,26 @@ MODEL_INFO = Info('student_dropout_model', 'Served model artifact metadata')
 APP_START_TIME = Gauge('student_dropout_app_start_time_seconds', 'Unix time the API process started')
 APP_START_TIME.set(time.time())
 
+# --- Alert desk: students at or above the alert threshold (default 50 %) ------------------
+ALERT_OPEN = Gauge(
+    'student_dropout_alert_open',
+    'Dropout probability of each open at-risk case (bounded rings, pseudonymous student label)',
+    ['student', 'tier', 'driver', 'cohort', 'origin']
+)
+ALERTS_OPEN = Gauge('student_dropout_alerts_open', 'Open at-risk cases by origin', ['origin'])
+ALERTS_RAISED = Counter('student_dropout_alerts_raised_total', 'At-risk cases opened', ['origin'])
+ALERTS_ACKNOWLEDGED = Counter('student_dropout_alerts_acknowledged_total', 'At-risk cases acknowledged', ['origin'])
+ALERT_ACK_SECONDS = Histogram(
+    'student_dropout_alert_ack_seconds',
+    'Time from a case being opened to an advisor acknowledging it',
+    buckets=(10, 30, 60, 300, 900, 3600, 14400, 86400)
+)
+
+# --- Institution data adapter ---------------------------------------------------------------
+ADAPTER_RUNS = Counter('student_dropout_adapter_runs_total', 'Institution files scored through the adapter', ['verdict'])
+ADAPTER_ROWS = Counter('student_dropout_adapter_rows_total', 'Rows scored through the adapter')
+ADAPTER_FIT = Gauge('student_dropout_adapter_fit_score', 'Institution Fit Score of the most recent adapter run (0-100)')
+
 # Pre-create bounded label sets so dashboards show explicit zeros instead of "No data".
 for _tier in RISK_TIERS:
     for _source in SOURCES:

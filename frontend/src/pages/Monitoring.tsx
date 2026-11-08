@@ -63,7 +63,7 @@ export default function Monitoring() {
     <>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Live monitoring</h1>
+          <h1 className="page-title">Observatory</h1>
           <p className="page-desc">
             Data drift and service health computed from a rolling window of the most recent predictions. The same
             signals are exported on <span className="mono">/metrics</span> and charted over time in Grafana.

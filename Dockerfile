@@ -31,6 +31,8 @@ COPY scripts/ scripts/
 COPY deploy/vercel/ deploy/vercel/
 COPY --from=ui /ui/dist frontend/dist
 RUN python deploy/vercel/make_demo_model.py
+# One hour of real model scoring on simulated students, replayed into Prometheus at every boot.
+RUN python deploy/vercel/record_history.py
 
 # Monitoring configuration, rewritten for the single-host layout
 COPY monitoring/ /opt/monitoring-src/
@@ -41,10 +43,12 @@ RUN mkdir -p /opt/monitoring/provisioning \
  && cp -r /opt/monitoring-src/grafana/provisioning/* /opt/monitoring/provisioning/ \
  && sed -i 's#http://prometheus:9090#http://127.0.0.1:9090/prometheus#' /opt/monitoring/provisioning/datasources/prometheus.yml \
  && sed -i 's#/var/lib/grafana/dashboards#/opt/monitoring-src/grafana/dashboards#' /opt/monitoring/provisioning/dashboards/dashboards.yml \
+ && sed -i -e 's#http://localhost:8080#/ui/#' -e 's#http://localhost:8000/docs#/docs#' -e 's#http://localhost:9090/alerts#/prometheus/alerts#' \
+           /opt/monitoring-src/grafana/dashboards/prediction_dashboard.json \
  && /opt/prometheus/promtool check config /opt/monitoring/prometheus.yml
 
 ENV GRAFANA_URL=/grafana PROMETHEUS_URL=/prometheus \
-    DEMO_TRAFFIC_RPS=3 SIM_SCHEDULE=normal:900,engagement-drop:600 \
+    DEMO_TRAFFIC_RPS=2 SIM_SCHEDULE=normal:900,engagement-drop:600 \
     GF_PATHS_PROVISIONING=/opt/monitoring/provisioning \
     GF_SERVER_HTTP_ADDR=127.0.0.1 GF_SERVER_HTTP_PORT=3300 \
     GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/ GF_SERVER_SERVE_FROM_SUB_PATH=true \

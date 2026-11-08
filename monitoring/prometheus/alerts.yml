@@ -1,4 +1,24 @@
 groups:
+  - name: student_risk_alerts
+    rules:
+      - alert: StudentDropoutRiskAbove50
+        expr: student_dropout_alert_open >= 0.5
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Student {{ $labels.student }} has a {{ $value | humanizePercentage }} chance of dropping out"
+          description: "Tier {{ $labels.tier }}, top driver: {{ $labels.driver }}, cohort: {{ $labels.cohort }}. Open the alert desk and assign an advisor."
+
+      - alert: AtRiskCaseBacklog
+        expr: sum(student_dropout_alerts_open{origin="user"}) >= 25
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} at-risk students are waiting for an advisor"
+          description: "Open cases raised by real users are piling up without acknowledgement."
+
   - name: prediction_alerts
     rules:
       - alert: HighErrorRate

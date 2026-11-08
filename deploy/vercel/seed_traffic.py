@@ -16,7 +16,7 @@ import simulate_traffic as sim  # noqa: E402
 
 BASE = os.environ.get("SEED_URL", "http://127.0.0.1:8000")
 BATCH_SIZE = int(os.environ.get("SEED_BATCH", "2000"))
-SINGLES = int(os.environ.get("SEED_SINGLES", "240"))
+SINGLES = int(os.environ.get("SEED_SINGLES", "60"))
 
 
 def main():

@@ -1,42 +1,26 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  Activity, BarChart3, BookOpen, Gauge, LayoutDashboard, Menu, Moon, Scale, ShieldCheck, Sun, Upload, UserSearch, X,
-} from "lucide-react";
 import { api } from "./lib/api";
+import { duration, pct } from "./lib/format";
 import { safeStorageGet, safeStorageSet, useApi, useHashRoute } from "./lib/hooks";
+import { LedgerProvider, useLedger } from "./lib/ledger";
 import { ThemeContext, type ThemeName } from "./lib/theme";
-import { StatusDot } from "./components/ui";
-import Overview from "./pages/Overview";
-import Assess from "./pages/Assess";
-import Batch from "./pages/Batch";
-import Insights from "./pages/Insights";
-import Fairness from "./pages/Fairness";
+import type { Health, Meta } from "./lib/types";
+import FrontPage from "./pages/FrontPage";
+import AlertDesk from "./pages/AlertDesk";
+import CaseFile from "./pages/CaseFile";
+import Intake from "./pages/Intake";
+import CohortLab from "./pages/CohortLab";
+import TheModel from "./pages/TheModel";
 import Monitoring from "./pages/Monitoring";
 
-interface NavEntry {
-  path: string;
-  label: string;
-  icon: ReactNode;
-  element: () => ReactNode;
-}
-
-const NAV: { section: string; items: NavEntry[] }[] = [
-  {
-    section: "Advise",
-    items: [
-      { path: "/", label: "Overview", icon: <LayoutDashboard size={17} />, element: () => <Overview /> },
-      { path: "/assess", label: "Risk assessment", icon: <UserSearch size={17} />, element: () => <Assess /> },
-      { path: "/batch", label: "Batch scoring", icon: <Upload size={17} />, element: () => <Batch /> },
-    ],
-  },
-  {
-    section: "Govern",
-    items: [
-      { path: "/insights", label: "Model insights", icon: <BarChart3 size={17} />, element: () => <Insights /> },
-      { path: "/fairness", label: "Fairness", icon: <Scale size={17} />, element: () => <Fairness /> },
-      { path: "/monitoring", label: "Live monitoring", icon: <Activity size={17} />, element: () => <Monitoring /> },
-    ],
-  },
+const PAGES: { path: string; label: string; element: () => ReactNode }[] = [
+  { path: "/", label: "Front page", element: () => <FrontPage /> },
+  { path: "/desk", label: "Alert desk", element: () => <AlertDesk /> },
+  { path: "/case", label: "Case file", element: () => <CaseFile /> },
+  { path: "/intake", label: "Intake", element: () => <Intake /> },
+  { path: "/lab", label: "Cohort lab", element: () => <CohortLab /> },
+  { path: "/model", label: "The model", element: () => <TheModel /> },
+  { path: "/observatory", label: "Observatory", element: () => <Monitoring /> },
 ];
 
 function initialTheme(): ThemeName {
@@ -45,107 +29,103 @@ function initialTheme(): ThemeName {
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
+function Waking() {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  return (
+    <div className="waking" role="status">
+      <div>
+        <div className="kicker">Stop press</div>
+        <h2>Warming the model.</h2>
+        <p className="prose" style={{ margin: "0 auto" }}>This free deployment sleeps when nobody is reading. A fresh instance loads the model and an hour of monitoring history first. It takes about 15 seconds.</p>
+        <div className="progress"><span style={{ width: `${Math.min(96, (seconds / 18) * 100)}%` }} /></div>
+      </div>
+    </div>
+  );
+}
+
+function Ticker() {
+  const { snapshot } = useLedger();
+  const items = (snapshot?.open ?? []).slice(0, 14);
+  if (!items.length) return null;
+  const tape = items.map((c) => (
+    <a key={c.id} href="#/desk">{c.ref} · {pct(c.risk_probability, 0)} · {c.top_driver ?? c.risk_tier}{c.origin === "simulator" ? " · demo" : ""}</a>
+  ));
+  return (
+    <div className="ticker no-print" aria-label="Students at or above the alert threshold">
+      <span className="tag">AT RISK</span>
+      <div style={{ overflow: "hidden", flex: 1 }}><div className="tape" style={{ width: "max-content" }}>{tape}{tape.map((t, i) => <span key={i} aria-hidden>{t.props.children}</span>)}</div></div>
+    </div>
+  );
+}
+
+function Masthead({ health, meta, theme, toggle, route }: { health: Health | null; meta: Meta | null; theme: ThemeName; toggle: () => void; route: string }) {
+  const { snapshot } = useLedger();
+  const today = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const links = meta?.links;
+  return (
+    <header>
+      <div className="dateline">
+        <span>{today} · Day-28 edition</span>
+        <div className="right">
+          {health && <span>Model {health.model_version} · instance up {duration(health.uptime_seconds)}</span>}
+          {links && <><a href={`${links.grafana}/d/mlops-monitoring`} target="_blank" rel="noreferrer">Grafana</a><a href={links.prometheus} target="_blank" rel="noreferrer">Prometheus</a><a href={links.api_docs} target="_blank" rel="noreferrer">API</a></>}
+          <button className="linkbtn" onClick={toggle}>{theme === "dark" ? "Day edition" : "Night shift"}</button>
+        </div>
+      </div>
+      <div className={`nameplate ${route === "/" ? "" : "compact"}`}>
+        <a href="#/"><h1>The <em>Early</em> Warning</h1></a>
+        <p className="motto">Which students are slipping at day 28, why, and what can still be done about it.</p>
+      </div>
+      <nav className="folio" aria-label="Sections">
+        {PAGES.map((page, i) => (
+          <a key={page.path} href={`#${page.path}`} className={page.path === route ? "active" : ""} aria-current={page.path === route ? "page" : undefined}>
+            <span>{String(i + 1).padStart(2, "0")}</span>{page.label}
+            {page.path === "/desk" && !!snapshot?.open_user_count && <b>{snapshot.open_user_count}</b>}
+          </a>
+        ))}
+      </nav>
+    </header>
+  );
+}
+
 export default function App() {
   const route = useHashRoute();
   const [theme, setTheme] = useState<ThemeName>(initialTheme);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const health = useApi(api.health, 10000);
-  const meta = useApi(api.meta);
+  const [ready, setReady] = useState(false);
+  const health = useApi(api.ping, ready ? 10000 : 2000, [ready]);
+  const meta = useApi(api.meta, 0, [ready]);
 
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
-  useEffect(() => setMenuOpen(false), [route]);
+  useEffect(() => { document.documentElement.setAttribute("data-theme", theme); }, [theme]);
+  useEffect(() => { if (health.data?.status === "healthy") setReady(true); }, [health.data]);
 
-  const themeValue = useMemo(
-    () => ({
-      theme,
-      toggle: () =>
-        setTheme((current) => {
-          const next = current === "dark" ? "light" : "dark";
-          safeStorageSet("ew-theme", next);
-          return next;
-        }),
+  const themeValue = useMemo(() => ({
+    theme,
+    toggle: () => setTheme((current) => {
+      const next = current === "dark" ? "light" : "dark";
+      safeStorageSet("ew-theme", next);
+      return next;
     }),
-    [theme],
-  );
+  }), [theme]);
 
-  const entries = NAV.flatMap((s) => s.items);
-  const active = entries.find((e) => e.path === route) ?? entries[0];
-  const healthy = health.data?.status === "healthy";
-  const statusText = health.error ? "API unreachable" : health.data ? (healthy ? "Service healthy" : "Model not loaded") : "Checking…";
-  const links = meta.data?.links;
-
-  const sidebar = (
-    <nav className={`sidebar ${menuOpen ? "open" : ""}`} aria-label="Main">
-      <div className="brand">
-        <div className="brand-mark"><ShieldCheck size={19} aria-hidden /></div>
-        <div>
-          <div className="brand-name">EarlyWarning</div>
-          <div className="brand-sub">Student success · MLOps</div>
-        </div>
-      </div>
-      {NAV.map((section) => (
-        <div key={section.section}>
-          <div className="nav-label">{section.section}</div>
-          {section.items.map((item) => (
-            <a key={item.path} href={`#${item.path}`} className={`nav-item ${item === active ? "active" : ""}`}
-              aria-current={item === active ? "page" : undefined}>
-              {item.icon}
-              {item.label}
-            </a>
-          ))}
-        </div>
-      ))}
-      <div className="sidebar-footer">
-        <div className="row" style={{ fontSize: 12.5 }}>
-          <StatusDot state={health.error ? "bad" : healthy ? "good" : "warn"} />
-          <span style={{ fontWeight: 600 }}>{statusText}</span>
-        </div>
-        {health.data && (
-          <div className="muted" style={{ fontSize: 11.5 }}>
-            Model <span className="mono">{health.data.model_version}</span> · API v{health.data.version}
-          </div>
-        )}
-        <div className="sidebar-links">
-          {links && (
-            <>
-              <a className="btn btn-sm" href={links.grafana} target="_blank" rel="noreferrer"><Gauge size={13} /> Grafana</a>
-              <a className="btn btn-sm" href={links.prometheus} target="_blank" rel="noreferrer"><Activity size={13} /> Prometheus</a>
-              <a className="btn btn-sm" href={links.api_docs} target="_blank" rel="noreferrer"><BookOpen size={13} /> API docs</a>
-            </>
-          )}
-        </div>
-        <button className="btn btn-sm btn-ghost" onClick={themeValue.toggle} style={{ justifyContent: "flex-start" }}>
-          {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />} {theme === "dark" ? "Light theme" : "Dark theme"}
-        </button>
-      </div>
-    </nav>
-  );
+  const active = PAGES.find((p) => p.path === route) ?? PAGES[0];
 
   return (
     <ThemeContext.Provider value={themeValue}>
-      <div className="shell">
-        <div className="sidebar-col">{sidebar}</div>
-        {menuOpen && <div className="scrim" onClick={() => setMenuOpen(false)} />}
-        <div>
-          <header className="topbar">
-            <div className="row">
-              <div className="brand-mark" style={{ width: 28, height: 28 }}><ShieldCheck size={16} /></div>
-              <strong>EarlyWarning</strong>
-            </div>
-            <div className="row">
-              <StatusDot state={health.error ? "bad" : healthy ? "good" : "warn"} />
-              <button className="btn btn-icon btn-ghost" aria-label="Open menu" onClick={() => setMenuOpen((o) => !o)}>
-                {menuOpen ? <X size={18} /> : <Menu size={18} />}
-              </button>
-            </div>
-          </header>
-          <main className="main" id="content">
-            {active.element()}
-          </main>
+      <LedgerProvider instance={health.data?.instance_started_at}>
+        <div className="paper">
+          <Masthead health={health.data} meta={meta.data} theme={theme} toggle={themeValue.toggle} route={active.path} />
+          <Ticker />
+          <main className="main" id="content">{ready ? active.element() : <Waking />}</main>
+          <footer className="colophon no-print">
+            <span>Predictions support advisors and never decide alone. Public demo: the model is trained on synthetic data shaped like OULAD.</span>
+            <span>XGBoost · SHAP · fairlearn · FastAPI · Prometheus · Grafana</span>
+          </footer>
         </div>
-      </div>
+      </LedgerProvider>
     </ThemeContext.Provider>
   );
 }

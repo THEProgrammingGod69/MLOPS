@@ -26,7 +26,8 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.api.inference import inference_service
-from src.api.routers import insights, monitoring, predict as predict_v1, system
+from src.api.alert_desk import raise_alerts
+from src.api.routers import insights, lab as lab_v1, monitoring, predict as predict_v1, system
 from src.api.schemas import HealthResponse, PredictionResponse, PredictiveFeatures
 from src.api.settings import SERVICE_NAME, SERVICE_VERSION, settings
 from src.api.telemetry import record_error, record_predictions
@@ -129,6 +130,7 @@ def predict(features: PredictiveFeatures, include_explanation: bool = False):
     elapsed = time.time() - start_time
     PREDICTION_LATENCY.observe(elapsed)
     record_predictions([result], source="single", latency_seconds=elapsed)
+    raise_alerts([result], "user", cohort="legacy api")
     return PredictionResponse(**{k: result[k] for k in PredictionResponse.model_fields})
 
 
@@ -136,6 +138,7 @@ app.include_router(system.router)
 app.include_router(predict_v1.router)
 app.include_router(insights.router)
 app.include_router(monitoring.router)
+app.include_router(lab_v1.router)
 
 if os.path.isdir(settings.ui_dist_dir):
     @app.get(UI_PREFIX, include_in_schema=False)
