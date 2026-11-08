@@ -281,7 +281,7 @@ def build():
              th=thresholds(("#3987e5", None)), description="New at-risk cases opened in the last 30 minutes."),
         stat("Median time to acknowledge", [target('histogram_quantile(0.5, sum by (le) (rate(student_dropout_alert_ack_seconds_bucket[1h])))')], 16, y, w=4, h=4,
              graph="none", unit="s", no_value="None yet", th=thresholds(("#3987e5", None)), description="How quickly advisors acknowledge a case on the alert desk."),
-        stat("Latest institution fit", [target('max(student_dropout_adapter_fit_score)')], 20, y, w=4, h=4, graph="none", decimals=0, no_value="No upload yet",
+        stat("Latest institution fit", [target('max(student_dropout_adapter_fit_score) > 0')], 20, y, w=4, h=4, graph="none", decimals=0, no_value="No upload yet",
              th=thresholds((CRIT, None), (WARN, 45), (GOOD, 70)), description="Institution Fit Score (0-100) of the most recent adapted upload."),
     ]
     y += 4

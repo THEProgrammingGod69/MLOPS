@@ -462,7 +462,7 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "max(student_dropout_adapter_fit_score)",
+          "expr": "max(student_dropout_adapter_fit_score) > 0",
           "legendFormat": "",
           "refId": "A",
           "range": true,
