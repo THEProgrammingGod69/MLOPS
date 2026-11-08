@@ -8,8 +8,11 @@ intervention, explains it with SHAP, and runs in production with live monitoring
 |---|---|---|
 | Data & training | DVC-versioned OULAD pipeline, baselines, calibration, fairness mitigation, MLflow | `src/data`, `src/models`, `src/fairness`, `src/calibration`, `src/pipeline` |
 | Inference API | FastAPI: legacy `/predict` + versioned `/api/v1` (single, batch, insights, monitoring) | `src/api` |
-| Web UI | React + TypeScript console: risk assessment, batch scoring, model insights, fairness, live monitoring | `frontend/` |
-| Observability | Prometheus metrics (live + offline), drift monitor, 9 alert rules, 66-panel Grafana dashboard | `src/monitoring`, `monitoring/` |
+| Web UI | "The Early Warning" broadsheet: alert desk, case file, institution intake, cohort lab, model insights, fairness, observatory | `frontend/` |
+| Observability | Prometheus metrics (live + offline), drift monitor, 11 alert rules, 83-panel Grafana dashboard | `src/monitoring`, `monitoring/` |
+| Alert desk | Every student at or above 50 % opens a case and fires `StudentDropoutRiskAbove50` in Grafana | `src/api/alert_desk.py` |
+| Institution adapter | Fits any institution's CSV/Excel/JSON to the model's 21 inputs and discloses how far to trust it | `src/adapter` |
+| Decision lab | Rescue plans, advisor triage and cohort stress tests | `src/api/lab.py` |
 
 ## Quick start (Docker, everything)
 
@@ -63,5 +66,6 @@ cd frontend && npm run build                # type-check + production build of t
 ## Documentation
 
 * **[docs/web_platform_and_observability.md](docs/web_platform_and_observability.md)**: reference for the web UI, the v1 API, live drift monitoring, the Grafana dashboard and alerting (start here)
+* **[docs/alerts_adapter_and_lab.md](docs/alerts_adapter_and_lab.md)**: 50 % alerts, the institution data adapter, the decision lab and cold-start behaviour
 * `docs/api_deployment.md`, `docs/monitoring_and_drift.md`: original deployment and monitoring notes
 * `docs/` also covers the data pipeline, modelling, calibration, fairness and explainability steps
