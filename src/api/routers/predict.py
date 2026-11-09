@@ -1,9 +1,11 @@
 """Single and batch scoring for the web UI (/api/v1/predict*)."""
 import statistics
 import time
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
+from src.api.alert_desk import add_top_drivers, raise_alerts
 from src.api.inference import inference_service
 from src.api.schemas import (BatchPredictionRequest, BatchPredictionResponse, PredictiveFeatures,
                              PredictionResponseV1)
@@ -21,8 +23,13 @@ def _v1_payload(result: dict, latency_ms: float) -> dict:
     return payload
 
 
+def _origin(request: Request) -> str:
+    return "simulator" if request.headers.get("x-traffic-origin", "").lower() in ("simulator", "seed") else "user"
+
+
 @router.post("/predict", response_model=PredictionResponseV1)
-def predict(features: PredictiveFeatures, include_explanation: bool = True):
+def predict(request: Request, features: PredictiveFeatures, include_explanation: bool = True,
+            student_reference: Optional[str] = None, cohort: str = "single assessment"):
     m.PREDICTION_REQUESTS.inc()
     started = time.perf_counter()
     try:
@@ -35,11 +42,17 @@ def predict(features: PredictiveFeatures, include_explanation: bool = True):
     elapsed = time.perf_counter() - started
     m.PREDICTION_LATENCY.observe(elapsed)
     record_predictions([result], source="single", latency_seconds=elapsed)
-    return _v1_payload(result, elapsed * 1000)
+    opened = []
+    if _origin(request) == "user":  # background traffic differs per instance, so it never opens cases
+        add_top_drivers([features], [result])
+        opened = raise_alerts([result], "user", references=[student_reference], cohort=cohort)
+    payload = _v1_payload(result, elapsed * 1000)
+    payload["alert"] = opened[0] if opened else None
+    return payload
 
 
 @router.post("/predict/batch", response_model=BatchPredictionResponse)
-def predict_batch(request: BatchPredictionRequest):
+def predict_batch(http: Request, request: BatchPredictionRequest):
     if len(request.students) > settings.max_batch_size:
         raise HTTPException(status_code=413,
                             detail=f"Batch of {len(request.students)} exceeds the limit of {settings.max_batch_size}")
@@ -56,7 +69,12 @@ def predict_batch(request: BatchPredictionRequest):
     elapsed = time.perf_counter() - started
     m.BATCH_SIZE.observe(len(results))
     m.BATCH_LATENCY.observe(elapsed)
-    record_predictions(results, source="batch")
+    seeding = http.headers.get("x-traffic-origin", "").lower() == "seed"
+    record_predictions(results, source="batch", export=not seeding)
+    if seeding or _origin(http) == "user":
+        add_top_drivers(request.students, results)
+        raise_alerts(results, "simulator" if seeding else "user", references=[s.record_id for s in request.students],
+                     cohort="demo stream" if seeding else "batch upload", count_metric=not seeding)
 
     rows = []
     for index, (student, result) in enumerate(zip(request.students, results)):

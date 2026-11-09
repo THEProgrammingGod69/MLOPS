@@ -8,13 +8,16 @@ intervention, explains it with SHAP, and runs in production with live monitoring
 |---|---|---|
 | Data & training | DVC-versioned OULAD pipeline, baselines, calibration, fairness mitigation, MLflow | `src/data`, `src/models`, `src/fairness`, `src/calibration`, `src/pipeline` |
 | Inference API | FastAPI: legacy `/predict` + versioned `/api/v1` (single, batch, insights, monitoring) | `src/api` |
-| Web UI | React + TypeScript console: risk assessment, batch scoring, model insights, fairness, live monitoring | `frontend/` |
-| Observability | Prometheus metrics (live + offline), drift monitor, 9 alert rules, 66-panel Grafana dashboard | `src/monitoring`, `monitoring/` |
+| Web UI | "The Early Warning" broadsheet: alert desk, case file, institution intake, cohort lab, model insights, fairness, observatory | `frontend/` |
+| Observability | Prometheus metrics (live + offline), drift monitor, 11 alert rules, 83-panel Grafana dashboard | `src/monitoring`, `monitoring/` |
+| Alert desk | Every student at or above 50 % opens a case and fires `StudentDropoutRiskAbove50` in Grafana | `src/api/alert_desk.py` |
+| Institution adapter | Fits any institution's CSV/Excel/JSON to the model's 21 inputs and discloses how far to trust it | `src/adapter` |
+| Decision lab | Rescue plans, advisor triage and cohort stress tests | `src/api/lab.py` |
 
 ## Quick start (Docker, everything)
 
 ```bash
-# the served model must exist locally first (dvc pull, or run the training pipeline)
+# the served model is committed under models/; retrain with scripts/train_served_model.py
 ls models/baseline/xgb_pipeline.pkl
 
 docker compose up -d --build                  # API, web UI, Prometheus, Grafana
@@ -60,8 +63,21 @@ python -m unittest discover -s tests -v     # backend, monitoring, dashboard and
 cd frontend && npm run build                # type-check + production build of the UI
 ```
 
+## Model provenance
+
+The deployed model is the project's XGBoost pipeline trained on the real
+[Open University Learning Analytics Dataset](https://archive.ics.uci.edu/dataset/349/open+university+learning+analytics+dataset)
+(Kuzilek, Hlosta and Zdrahal, *Scientific Data* 4:170171, 2017, CC BY 4.0), with a checksum matching
+this repository's DVC record. Retraining with `scripts/train_served_model.py` reproduces the committed
+report: validation ROC-AUC 0.723 (report 0.721), PR-AUC 0.393 (report 0.390).
+
+At the 50 % alert line it flags 3.5 % of validation students, with 57 % precision and 11 % recall. The alert
+line is a high-confidence signal, not a complete net: of all eventual withdrawals, 11 % score CRITICAL,
+25 % HIGH, 22 % MODERATE and 42 % LOW. At day 28 many students who later leave still look fine.
+
 ## Documentation
 
 * **[docs/web_platform_and_observability.md](docs/web_platform_and_observability.md)**: reference for the web UI, the v1 API, live drift monitoring, the Grafana dashboard and alerting (start here)
+* **[docs/alerts_adapter_and_lab.md](docs/alerts_adapter_and_lab.md)**: 50 % alerts, the institution data adapter, the decision lab and cold-start behaviour
 * `docs/api_deployment.md`, `docs/monitoring_and_drift.md`: original deployment and monitoring notes
 * `docs/` also covers the data pipeline, modelling, calibration, fairness and explainability steps

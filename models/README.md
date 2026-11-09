@@ -1,7 +1,8 @@
 # Model artifacts
 
 Trained artifacts are produced by the pipeline (`src/models/train_baselines.py`,
-`src/fairness/mitigate.py`) and are not tracked by default. The API serves:
+`src/fairness/mitigate.py`) and the other pipeline outputs are not tracked. The two served files are
+committed, built with `scripts/train_served_model.py` from the real OULAD data. The API serves:
 
 | File | Required | Purpose |
 |---|---|---|

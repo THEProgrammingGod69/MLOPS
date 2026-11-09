@@ -236,7 +236,8 @@ def make_student(rng, marginals, categories, scenario):
 
 def post(url, payload, timeout=10):
     request = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST",
-                                     headers={"Content-Type": "application/json"})
+                                     headers={"Content-Type": "application/json",
+                                              "X-Traffic-Origin": os.environ.get("SIM_ORIGIN", "simulator")})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return response.status

@@ -49,6 +49,7 @@ export interface Health {
   version: string;
   model_version: string;
   uptime_seconds: number;
+  instance_started_at: number;
   components: Record<"model" | "intervention_engine" | "fairness_mitigator" | "explainer", ComponentState>;
 }
 
@@ -105,6 +106,7 @@ export interface Prediction {
   latency_ms: number;
   missing_features: string[];
   explanation: { backend: string; base_value: number; contributions: Contribution[] } | null;
+  alert: AlertCase | null;
 }
 
 export interface BatchRow {
@@ -206,6 +208,158 @@ export interface RecentPrediction {
   code_module: string | null;
   code_presentation: string | null;
   top_driver: string | null;
+}
+
+export interface AlertCase {
+  id: string;
+  ref: string;
+  reference?: string | null; // only in the response to the person who submitted the student
+  risk_probability: number;
+  risk_tier: RiskTier;
+  intervention_level: string;
+  top_driver: string | null;
+  cohort: string;
+  origin: "user" | "simulator";
+  raised_at: number;
+  updated_at: number;
+  status: "open" | "acknowledged";
+  assignee: string | null;
+  note: string | null;
+  acknowledged_at?: number;
+}
+
+export interface AlertSnapshot {
+  threshold: number;
+  open_count: number;
+  open_user_count: number;
+  open: AlertCase[];
+  acknowledged: AlertCase[];
+}
+
+export interface ColumnProfile {
+  name: string;
+  kind: string;
+  missing_rate: number;
+  unique: number;
+  samples: string[];
+  min?: number;
+  max?: number;
+  mean?: number;
+}
+
+export interface TargetAssignment {
+  column: string | null;
+  confidence: number;
+  transform: string | null;
+  origin: string | null;
+}
+
+export interface Mapping {
+  targets: Record<string, TargetAssignment>;
+  roles: Record<string, string | null>;
+}
+
+export interface Inspection {
+  filename: string;
+  rows: number;
+  columns: ColumnProfile[];
+  proposal: Mapping;
+  targets: { feature: string; label: string; kind: string; transforms: string[] }[];
+  preview: Record<string, unknown>[];
+}
+
+export interface FitFeature {
+  feature: string;
+  label: string;
+  column: string | null;
+  transform: string;
+  origin: string;
+  origin_text: string;
+  note: string | null;
+  confidence: number;
+  importance: number;
+  quality: number;
+  psi: number | null;
+}
+
+export interface AdapterRow {
+  reference: string;
+  risk_probability: number;
+  raw_probability: number;
+  risk_tier: RiskTier;
+  cohort_percentile: number;
+  intervention_level: string;
+  top_driver: string | null;
+  features: FeatureRecord;
+}
+
+export interface AdapterResult {
+  model_version: string;
+  latency_ms: number;
+  cohort: string;
+  count: number;
+  truncated_rows: number;
+  tier_counts: Record<RiskTier, number>;
+  alerts_opened: number;
+  alert_threshold: number;
+  alerts: AlertCase[];
+  calibrated: boolean;
+  fit: { score: number; verdict: "strong" | "caution" | "indicative"; advice: string; origin_counts: Record<string, number>; drift_penalty: number; features: FitFeature[] };
+  validation: { available: boolean; reason: string | null; n?: number; base_rate?: number; auc?: number; brier_raw?: number; brier_calibrated?: number };
+  rows: AdapterRow[];
+}
+
+export interface RescueStep {
+  id: string;
+  action: string;
+  owner: string;
+  effort: number;
+  risk_before: number;
+  risk_after: number;
+  risk_change: number;
+}
+
+export interface RescuePlan {
+  start_probability: number;
+  end_probability: number;
+  target: number;
+  reaches_target: boolean;
+  already_below_target: boolean;
+  total_effort: number;
+  steps: RescueStep[];
+  feature_changes: { feature: string; label: string; from: FeatureValue; to: FeatureValue }[];
+}
+
+export interface Scenario {
+  id: string;
+  label: string;
+  description: string;
+}
+
+export interface TriagePlan {
+  budget_minutes: number;
+  used_minutes: number;
+  candidates: number;
+  response_rate?: number;
+  expected_saved: number;
+  naive_expected_saved: number;
+  uplift_vs_naive: number;
+  selected: { reference: string; risk: number; risk_after_plan: number; tier: RiskTier; minutes: number; expected_saved: number; actions: string[] }[];
+}
+
+export interface StressResult {
+  scenario: string;
+  count: number;
+  threshold: number;
+  mean_before: number;
+  mean_after: number;
+  alerts_before: number;
+  alerts_after: number;
+  newly_at_risk: number;
+  recovered: number;
+  histogram_before: number[];
+  histogram_after: number[];
+  most_exposed: { reference: string; before: number; after: number }[];
 }
 
 export type Row = Record<string, number | string | boolean | null>;

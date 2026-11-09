@@ -265,6 +265,48 @@ def build():
         0, y, 24, 3))
     y += 3
 
+    # ------------------------------------------------------------------ at-risk students (>= 50 %)
+    panels.append(row("🚨 Students at 50 % or higher dropout risk", y)); y += 1
+    case_columns = {"student": "Student (pseudonym)", "Value": "Dropout probability", "tier": "Tier", "driver": "Top driver",
+                    "cohort": "Cohort", "origin": "Raised by"}
+    panels += [
+        stat("Open alerts: real users", [target('sum(student_dropout_alerts_open{origin="user"}) or vector(0)')], 0, y, w=4, h=4, graph="none",
+             color_mode="background", th=thresholds((GOOD, None), (CRIT, 1)),
+             description="Students scored at 50 % or above by people using the app or uploading a cohort, not yet acknowledged."),
+        stat("Open alerts: demo traffic", [target('sum(student_dropout_alerts_open{origin="simulator"}) or vector(0)')], 4, y, w=4, h=4, graph="none",
+             th=thresholds(("#3987e5", None)), description="Same rule applied to the built-in traffic simulator (bounded to 12 rows)."),
+        stat("Prometheus alerts firing", [target('count(ALERTS{alertname="StudentDropoutRiskAbove50", alertstate="firing"}) or vector(0)')], 8, y, w=4, h=4,
+             graph="none", th=thresholds((GOOD, None), (CRIT, 1)), description="Instances of the StudentDropoutRiskAbove50 rule currently firing."),
+        stat("Raised, last 30 min", [target('sum(increase(student_dropout_alerts_raised_total[30m]))')], 12, y, w=4, h=4, graph="none", decimals=0,
+             th=thresholds(("#3987e5", None)), description="New at-risk cases opened in the last 30 minutes."),
+        stat("Median time to acknowledge", [target('histogram_quantile(0.5, sum by (le) (rate(student_dropout_alert_ack_seconds_bucket[1h])))')], 16, y, w=4, h=4,
+             graph="none", unit="s", no_value="None yet", th=thresholds(("#3987e5", None)), description="How quickly advisors acknowledge a case on the alert desk."),
+        stat("Latest institution fit", [target('max(student_dropout_adapter_fit_score) > 0')], 20, y, w=4, h=4, graph="none", decimals=0, no_value="No upload yet",
+             th=thresholds((CRIT, None), (WARN, 45), (GOOD, 70)), description="Institution Fit Score (0-100) of the most recent adapted upload."),
+    ]
+    y += 4
+    panels += [
+        table("Open at-risk cases", [target('student_dropout_alert_open', instant=True, fmt="table")], 0, y, 13, 10,
+              transformations=[{"id": "organize", "options": {
+                  "excludeByName": {"Time": True, "__name__": True, "job": True, "instance": True, "environment": True},
+                  "indexByName": {"student": 0, "Value": 1, "tier": 2, "driver": 3, "cohort": 4, "origin": 5},
+                  "renameByName": case_columns}}],
+              overrides=[{"matcher": {"id": "byName", "options": "Dropout probability"}, "properties": [
+                  {"id": "unit", "value": "percentunit"}, {"id": "decimals", "value": 1},
+                  {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "gradient"}},
+                  {"id": "thresholds", "value": thresholds((WARN, None), (SERIOUS, 0.6), (CRIT, 0.75))}]}],
+              sort_by=[{"displayName": "Dropout probability", "desc": True}],
+              description="One row per student at or above 50 %. Acknowledging a case on the alert desk removes its row."),
+        {"type": "alertlist", "title": "Firing: StudentDropoutRiskAbove50", "id": _id(), "description": "Live state of the Prometheus alert rule.",
+         "gridPos": {"h": 10, "w": 5, "x": 13, "y": y},
+         "options": {"alertInstanceLabelFilter": "", "alertName": "StudentDropoutRiskAbove50", "dashboardAlerts": False, "datasource": "Prometheus",
+                     "groupBy": [], "groupMode": "default", "maxItems": 20, "sortOrder": 3,
+                     "stateFilter": {"error": True, "firing": True, "noData": False, "normal": False, "pending": True}, "viewMode": "list"}},
+        timeseries("Alerts raised per minute", [target('sum by (origin) (increase(student_dropout_alerts_raised_total[1m]))', "{{origin}}")],
+                   18, y, 6, 10, bars=True, description="At-risk cases opened per minute, split by who raised them."),
+    ]
+    y += 10
+
     # ------------------------------------------------------------------ KPI strip
     panels.append(row("Service health at a glance", y)); y += 1
     up_map = [{"type": "value", "options": {"0": {"text": "DOWN", "color": CRIT}, "1": {"text": "UP", "color": GOOD}}}]
@@ -272,7 +314,7 @@ def build():
                                                 "1": {"text": "Loaded", "color": GOOD}}}]
     panels += [
         stat("API status", [target(f"max(up{{{SEL}}})")], 0, y, mappings=up_map, color_mode="background",
-             graph="none", th=thresholds((CRIT, None), (GOOD, 1)), no_value="DOWN",
+             graph="none", th=thresholds((CRIT, None), (GOOD, 1)), no_value="Starting",
              description="Prometheus scrape health of the inference API."),
         stat("Risk model", [target(f"max(student_dropout_model_loaded{{{SEL}}})")], 3, y, mappings=loaded_map,
              color_mode="background", graph="none", th=thresholds((CRIT, None), (GOOD, 1)), no_value="Unknown",
@@ -700,7 +742,7 @@ def build():
 
 def main():
     dashboard = build()
-    with open(OUTPUT, "w") as f:
+    with open(OUTPUT, "w", newline="\n") as f:  # LF on every OS: CI diffs this file byte for byte
         json.dump(dashboard, f, indent=2)
         f.write("\n")
     print(f"Wrote {len(dashboard['panels'])} panels to {OUTPUT}")

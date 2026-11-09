@@ -86,6 +86,7 @@ class PredictionResponseV1(PredictionResponse):
     latency_ms: float = Field(..., description="Server-side inference time in milliseconds")
     missing_features: List[str] = Field(default_factory=list, description="Features supplied as null")
     explanation: Optional[ExplanationDetail] = None
+    alert: Optional[dict] = Field(None, description="Alert-desk case opened by this prediction (risk at or above the alert threshold)")
 
 
 class BatchStudent(PredictiveFeatures):

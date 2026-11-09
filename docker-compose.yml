@@ -3,8 +3,7 @@
 #   docker compose up -d --build                  # API :8000, UI :8080, Prometheus :9090, Grafana :3000
 #   docker compose --profile demo up -d --build   # ... plus synthetic traffic for live dashboards
 #
-# The API image bakes in models/baseline/xgb_pipeline.pkl, so the model must exist
-# locally before building (dvc pull / training pipeline). reports/ is mounted read-only
+# The API image bakes in the committed models/baseline/xgb_pipeline.pkl. reports/ is mounted read-only
 # so re-running a batch evaluation updates the UI and Grafana without a rebuild.
 services:
   api:

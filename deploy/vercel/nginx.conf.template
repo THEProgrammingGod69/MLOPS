@@ -1,0 +1,73 @@
+# Single public port: web UI + API at /, Grafana at /grafana/, Prometheus at /prometheus/.
+worker_processes 1;
+pid /tmp/nginx.pid;
+error_log /dev/stderr warn;
+events { worker_connections 512; }
+http {
+  access_log off;
+  include /etc/nginx/mime.types;
+  gzip on;
+  gzip_types text/css application/javascript application/json image/svg+xml;
+  client_body_temp_path /tmp/nginx-body;
+  client_max_body_size 5m;
+  proxy_temp_path /tmp/nginx-proxy;
+  fastcgi_temp_path /tmp/nginx-fastcgi;
+  uwsgi_temp_path /tmp/nginx-uwsgi;
+  scgi_temp_path /tmp/nginx-scgi;
+  map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+  proxy_http_version 1.1;
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-Proto https;
+  proxy_read_timeout 120s;
+  server {
+    listen __PORT__;
+    absolute_redirect off;  # relative Location headers keep the public https scheme
+    error_page 502 503 504 = @starting;
+    location @starting {
+      default_type text/html;
+      add_header Cache-Control no-store always;
+      add_header Retry-After 3 always;
+      return 503 '<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta http-equiv=refresh content=3><title>Warming up</title><body style="margin:0;height:100vh;display:grid;place-items:center;background:#f4efe4;color:#16130f;font:17px Georgia,serif;text-align:center"><div style="padding:24px"><div style="font:600 12px ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase;color:#c8321c">Cold start</div><h1 style="font:500 34px Georgia,serif;margin:10px 0">The stack is waking up.</h1><p style="margin:0;color:#5c554a">Free hosting sleeps when nobody is looking. This page opens by itself in about 15 seconds.</p></div>';
+    }
+    location = /grafana { return 302 /grafana/; }
+    # Fingerprinted Grafana assets straight from disk, cached at the CDN: a page never loses a
+    # chunk to a container that is busy or was just replaced.
+    location ~ ^/grafana/public/(build|img|fonts|lib)/(.*)$ {
+      alias /opt/grafana/public/$1/$2;
+      add_header Cache-Control "public, max-age=604800, s-maxage=604800, immutable";
+    }
+    location = /__touch {
+      internal;
+      proxy_pass http://127.0.0.1:8000/api/v1/touch;
+      proxy_pass_request_body off;
+      proxy_set_header Content-Length "";
+      proxy_set_header X-Alert-Sync 1;
+    }
+    location /grafana/ {
+      mirror /__touch;
+      mirror_request_body off;
+      proxy_pass http://127.0.0.1:3300;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection $connection_upgrade;
+    }
+    # Static UI from disk, cached at the CDN: the shell renders at once even when no container is awake.
+    location /ui/ {
+      alias /app/frontend/dist/;
+      index index.html;
+      add_header Cache-Control "public, max-age=0, s-maxage=60, stale-while-revalidate=86400";
+      location /ui/assets/ { alias /app/frontend/dist/assets/; add_header Cache-Control "public, max-age=604800, s-maxage=604800, immutable"; }
+    }
+    location = /prometheus { return 302 /prometheus/; }
+    # The bare Prometheus UI is an empty query box; open it on the key live series instead.
+    location = /prometheus/ {
+      return 302 '/prometheus/graph?g0.expr=student_dropout_alert_open&g0.tab=1&g1.expr=sum(rate(student_dropout_predictions_total%5B1m%5D))&g1.tab=0&g1.range_input=30m&g2.expr=student_dropout_window_mean_risk&g2.tab=0&g2.range_input=30m&g3.expr=up&g3.tab=1';
+    }
+    location = /prometheus/api/v1/write { return 403; }  # the receiver is for the boot-time replay only
+    location /prometheus/ {
+      proxy_pass http://127.0.0.1:9090;
+    }
+    location = / { return 302 /ui/; }
+    location / { proxy_pass http://127.0.0.1:8000; }
+  }
+}
