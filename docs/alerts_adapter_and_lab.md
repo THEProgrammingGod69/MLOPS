@@ -65,9 +65,9 @@ These report how the model responds to changed inputs. They are not causal estim
 ## What the 50 % line catches
 
 On the validation split the served model flags 3.5 % of students at 50 % or above, and 57 % of those
-go on to withdraw. That is 11 % of all eventual withdrawals. The alert is therefore high-confidence but
-narrow: students in the HIGH tier (30-50 %) still need outreach, and lowering `ALERT_THRESHOLD` trades
-precision for reach.
+go on to withdraw. That is 11 % of all eventual withdrawals; another 25 % score HIGH (30-50 %), 22 %
+MODERATE and 42 % LOW. The alert is therefore high-confidence but narrow: lowering `ALERT_THRESHOLD`
+trades precision for reach.
 
 ## Regenerating assets
 

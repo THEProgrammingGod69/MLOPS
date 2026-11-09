@@ -71,8 +71,9 @@ The deployed model is the project's XGBoost pipeline trained on the real
 this repository's DVC record. Retraining with `scripts/train_served_model.py` reproduces the committed
 report: validation ROC-AUC 0.723 (report 0.721), PR-AUC 0.393 (report 0.390).
 
-At the 50 % alert line it flags 3.5 % of validation students, with 57 % precision and 11 % recall. So the
-alert line is a high-confidence signal, and most eventual withdrawals sit in the HIGH and MODERATE tiers.
+At the 50 % alert line it flags 3.5 % of validation students, with 57 % precision and 11 % recall. The alert
+line is a high-confidence signal, not a complete net: of all eventual withdrawals, 11 % score CRITICAL,
+25 % HIGH, 22 % MODERATE and 42 % LOW. At day 28 many students who later leave still look fine.
 
 ## Documentation
 
