@@ -63,6 +63,17 @@ python -m unittest discover -s tests -v     # backend, monitoring, dashboard and
 cd frontend && npm run build                # type-check + production build of the UI
 ```
 
+## Model provenance
+
+The deployed model is the project's XGBoost pipeline trained on the real
+[Open University Learning Analytics Dataset](https://archive.ics.uci.edu/dataset/349/open+university+learning+analytics+dataset)
+(Kuzilek, Hlosta and Zdrahal, *Scientific Data* 4:170171, 2017, CC BY 4.0), with a checksum matching
+this repository's DVC record. Retraining with `scripts/train_served_model.py` reproduces the committed
+report: validation ROC-AUC 0.723 (report 0.721), PR-AUC 0.393 (report 0.390).
+
+At the 50 % alert line it flags 3.5 % of validation students, with 57 % precision and 11 % recall. So the
+alert line is a high-confidence signal, and most eventual withdrawals sit in the HIGH and MODERATE tiers.
+
 ## Documentation
 
 * **[docs/web_platform_and_observability.md](docs/web_platform_and_observability.md)**: reference for the web UI, the v1 API, live drift monitoring, the Grafana dashboard and alerting (start here)

@@ -126,7 +126,7 @@ export default function CaseFile() {
   const [form, setForm] = useState<FormState | null>(null);
   const [gender, setGender] = useState("");
   const [reference, setReference] = useState("");
-  const [preset, setPreset] = useState<string | null>("disengaging");
+  const [preset, setPreset] = useState<string | null>("silent");
   const [result, setResult] = useState<Prediction | null>(null);
   const [plan, setPlan] = useState<RescuePlan | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -139,7 +139,7 @@ export default function CaseFile() {
 
   useEffect(() => {
     if (schema.data && !form) {
-      const start = schema.data.samples.find((s) => s.id === "disengaging") ?? schema.data.samples[0];
+      const start = schema.data.samples.find((s) => s.id === "silent") ?? schema.data.samples[0];
       setForm(toForm(start.features));
     }
   }, [schema.data, form]);

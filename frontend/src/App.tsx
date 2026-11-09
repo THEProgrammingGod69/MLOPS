@@ -121,7 +121,7 @@ export default function App() {
           <Ticker />
           <main className="main" id="content">{ready ? active.element() : <Waking />}</main>
           <footer className="colophon no-print">
-            <span>Predictions support advisors and never decide alone. Public demo: the model is trained on synthetic data shaped like OULAD.</span>
+            <span>Predictions support advisors and never decide alone. Model trained on the Open University Learning Analytics Dataset (Kuzilek et al., 2017, CC BY 4.0). Live traffic in this demo is simulated.</span>
             <span>XGBoost · SHAP · fairlearn · FastAPI · Prometheus · Grafana</span>
           </footer>
         </div>

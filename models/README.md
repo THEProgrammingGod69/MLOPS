@@ -1,7 +1,9 @@
 # Model artifacts
 
 Trained artifacts are produced by the pipeline (`src/models/train_baselines.py`,
-`src/fairness/mitigate.py`) and are not tracked by default. The API serves:
+`src/fairness/mitigate.py`) and are not tracked by default on `main`. The `deploy/vercel` branch
+commits the two served files, built with `scripts/train_served_model.py` from the real OULAD
+data. The API serves:
 
 | File | Required | Purpose |
 |---|---|---|

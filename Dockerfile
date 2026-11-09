@@ -2,8 +2,7 @@
 #   /            web UI + FastAPI (+ built-in demo traffic)
 #   /grafana/    Grafana (anonymous viewer, provisioned 66-panel dashboard)
 #   /prometheus/ Prometheus (scrapes the API, evaluates the 9 alert rules)
-# The model is a schema-faithful DEMO stand-in trained at build time
-# (deploy/vercel/make_demo_model.py): the real OULAD artifacts are not in git.
+# Serves the real model trained on OULAD (scripts/train_served_model.py). Traffic is simulated.
 FROM node:22-alpine AS ui
 WORKDIR /ui
 COPY frontend/package.json frontend/package-lock.json ./
@@ -30,7 +29,9 @@ COPY reports/ reports/
 COPY scripts/ scripts/
 COPY deploy/vercel/ deploy/vercel/
 COPY --from=ui /ui/dist frontend/dist
-RUN python deploy/vercel/make_demo_model.py
+COPY models/ models/
+# A model that cannot load must fail the build, leaving the current production deployment in place.
+RUN python -c "from src.api.inference import inference_service as s; assert s.loaded and s.to_pipeline is not None and s.explainer is not None, s.components; print(s.components)"
 # One hour of real model scoring on simulated students, replayed into Prometheus at every boot.
 RUN python deploy/vercel/record_history.py
 
