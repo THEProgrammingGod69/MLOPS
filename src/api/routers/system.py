@@ -1,7 +1,9 @@
 """Service, model and schema metadata."""
+import os
 import time
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 
 from src.api.feature_catalog import schema_payload
 from src.api.inference import inference_service
@@ -50,6 +52,15 @@ def model_card():
     card["offline_metrics"] = offline
     card["deployed_model_key"] = DEPLOYED_MODEL
     return card
+
+
+@router.get("/replay", include_in_schema=False)
+def replay():
+    """Build-time recording of monitoring history, for a separately hosted Prometheus to load."""
+    path = os.environ.get("RECORD_OUTPUT", "/opt/replay/metrics.json.gz")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="No recording in this image")
+    return FileResponse(path, media_type="application/gzip")
 
 
 @router.get("/schema")

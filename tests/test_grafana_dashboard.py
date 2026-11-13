@@ -119,21 +119,26 @@ class TestGrafanaDashboard(unittest.TestCase):
     def test_render_blueprint_is_consistent(self):
         with open("render.yaml") as f:
             services = {s["name"]: s for s in yaml.safe_load(f)["services"]}
-        self.assertEqual(len(services), 3)
+        self.assertEqual(set(services), {"student-dropout-ews", "student-dropout-ews-monitoring"})
         for service in services.values():
+            self.assertEqual(service["plan"], "free")
             self.assertTrue(os.path.exists(service["dockerfilePath"]), service["dockerfilePath"])
             self.assertEqual(service["dockerContext"], ".")
         env = {s: {e["key"]: e.get("value") for e in services[s]["envVars"]} for s in services}
-        api, prom, grafana = "mlops-ews-api", "mlops-ews-prometheus", "mlops-ews-grafana"
-        self.assertEqual(env[prom]["API_TARGET"], f"{api}.onrender.com")
-        self.assertEqual(env[grafana]["PROMETHEUS_URL"], f"https://{prom}.onrender.com")
-        self.assertEqual(env[api]["GRAFANA_URL"], f"https://{grafana}.onrender.com")
-        admin = next(e for e in services[grafana]["envVars"] if e["key"] == "GF_SECURITY_ADMIN_PASSWORD")
-        self.assertTrue(admin.get("generateValue"), "Grafana admin password must not be a fixed value")
-        with open("deploy/render/prometheus.yml.template") as f:
-            template = f.read()
-        self.assertIn("__API_TARGET__", template)
-        self.assertIn("__API_SCHEME__", template)
+        api, monitoring = "student-dropout-ews", "student-dropout-ews-monitoring"
+        self.assertEqual(env[monitoring]["API_URL"], f"https://{api}.onrender.com")
+        self.assertEqual(env[api]["GRAFANA_URL"], f"https://{monitoring}.onrender.com/grafana")
+        self.assertEqual(env[api]["PROMETHEUS_URL"], f"https://{monitoring}.onrender.com/prometheus")
+        self.assertNotIn("GF_SECURITY_ADMIN_PASSWORD", env[monitoring], "the admin password is generated at boot")
+        with open("deploy/render/prometheus.render.yml") as f:
+            prom = yaml.safe_load(f)
+        self.assertEqual(prom["scrape_configs"][0]["static_configs"][0]["targets"], ["__API_HOST__"])
+        with open("deploy/render/monitoring-start.sh") as f:
+            start = f.read()
+        self.assertLess(start.index("${API_URL}/health"), start.index("prometheus.render.yml"),
+                        "the API must be awake before Prometheus starts scraping it")
+        self.assertLess(start.index("replay_history.py"), start.index("kill -HUP"))
+        self.assertTrue(start.rstrip().endswith("daemon off;'"), "nginx must open the port last")
 
 
 if __name__ == "__main__":

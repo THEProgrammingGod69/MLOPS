@@ -1,63 +1,43 @@
-# Render Blueprint: API + web UI, Prometheus and Grafana, each with a public HTTPS URL.
-# Deploy: render.com -> New -> Blueprint -> pick this repository -> Apply.
+# Render Blueprint: the whole stack on two free web services.
+#   One-click deploy: https://render.com/deploy?repo=https://github.com/THEProgrammingGod69/MLOPS
 #
-# Render's free tier cannot receive private-network traffic, so the services talk over
-# their public URLs. Those URLs are https://<service name>.onrender.com unless the name
-# is already taken, in which case Render appends a suffix: then update API_TARGET,
-# PROMETHEUS_URL and GRAFANA_URL below (or in the dashboard) and redeploy.
+#   student-dropout-ews             FastAPI + web UI           (about 390 MB of the 512 MB free)
+#   student-dropout-ews-monitoring  Prometheus + Grafana       (about 200 MB)
 #
-# The API image needs models/baseline/xgb_pipeline.pkl (and, optionally,
-# models/mitigated/xgb_threshold_optimizer_gender.pkl) committed to the repository.
+# Free services sleep after 15 idle minutes and take about a minute to wake. The monitoring
+# service wakes the API itself before it starts scraping, and reloads an hour of recorded
+# history at every boot, so a cold start never shows a false "DOWN" or empty charts.
+# Service URLs are https://<name>.onrender.com unless Render had to add a suffix because the
+# name was taken: then update API_URL, GRAFANA_URL and PROMETHEUS_URL below.
 services:
   - type: web
-    name: mlops-ews-api
+    name: student-dropout-ews
     runtime: docker
     plan: free
-    region: oregon
-    dockerfilePath: ./Dockerfile
+    region: singapore
+    dockerfilePath: ./deploy/render/api.Dockerfile
     dockerContext: .
     healthCheckPath: /health
+    autoDeploy: true
     envVars:
-      - key: PORT
-        value: "8000"
       - key: GRAFANA_URL
-        value: https://mlops-ews-grafana.onrender.com
+        value: https://student-dropout-ews-monitoring.onrender.com/grafana
       - key: PROMETHEUS_URL
-        value: https://mlops-ews-prometheus.onrender.com
-      # Built-in demo traffic so dashboards are always populated (0 disables it).
+        value: https://student-dropout-ews-monitoring.onrender.com/prometheus
       - key: DEMO_TRAFFIC_RPS
         value: "1"
       - key: SIM_SCHEDULE
         value: normal:1200,engagement-drop:600
 
   - type: web
-    name: mlops-ews-prometheus
+    name: student-dropout-ews-monitoring
     runtime: docker
     plan: free
-    region: oregon
-    dockerfilePath: ./deploy/render/prometheus.Dockerfile
+    region: singapore
+    dockerfilePath: ./deploy/render/monitoring.Dockerfile
     dockerContext: .
-    healthCheckPath: /-/ready
+    healthCheckPath: /grafana/api/health
+    autoDeploy: true
     envVars:
-      - key: PORT
-        value: "9090"
-      - key: API_TARGET
-        value: mlops-ews-api.onrender.com
-      - key: API_SCHEME
-        value: https
-
-  - type: web
-    name: mlops-ews-grafana
-    runtime: docker
-    plan: free
-    region: oregon
-    dockerfilePath: ./deploy/render/grafana.Dockerfile
-    dockerContext: .
-    healthCheckPath: /api/health
-    envVars:
-      - key: PORT
-        value: "3000"
-      - key: PROMETHEUS_URL
-        value: https://mlops-ews-prometheus.onrender.com
-      - key: GF_SECURITY_ADMIN_PASSWORD
-        generateValue: true
+      - key: API_URL
+        value: https://student-dropout-ews.onrender.com

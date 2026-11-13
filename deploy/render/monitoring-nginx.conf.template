@@ -1,0 +1,38 @@
+# Monitoring service: Grafana at /grafana/, Prometheus at /prometheus/, on Render's $PORT.
+worker_processes 1;
+pid /tmp/nginx.pid;
+error_log /dev/stderr warn;
+events { worker_connections 256; }
+http {
+  access_log off;
+  include /etc/nginx/mime.types;
+  gzip on;
+  gzip_types text/css application/javascript application/json image/svg+xml;
+  client_body_temp_path /tmp/nginx-body;
+  proxy_temp_path /tmp/nginx-proxy;
+  fastcgi_temp_path /tmp/nginx-fastcgi;
+  uwsgi_temp_path /tmp/nginx-uwsgi;
+  scgi_temp_path /tmp/nginx-scgi;
+  proxy_http_version 1.1;
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-Proto https;
+  proxy_read_timeout 120s;
+  server {
+    listen __PORT__;
+    absolute_redirect off;
+    location = / { return 302 /grafana/d/mlops-monitoring; }
+    location = /grafana { return 302 /grafana/; }
+    location ~ ^/grafana/public/(build|img|fonts|lib)/(.*)$ {
+      alias /opt/grafana/public/$1/$2;
+      add_header Cache-Control "public, max-age=604800, immutable";
+    }
+    location /grafana/ { proxy_pass http://127.0.0.1:3300; }
+    location = /prometheus { return 302 /prometheus/; }
+    location = /prometheus/ {
+      return 302 '/prometheus/graph?g0.expr=student_dropout_alert_open&g0.tab=1&g1.expr=up&g1.tab=1&g2.expr=sum(rate(student_dropout_predictions_total%5B2m%5D))&g2.tab=0&g2.range_input=30m';
+    }
+    location = /prometheus/api/v1/write { return 403; }  # the receiver is for the boot-time replay only
+    location /prometheus/ { proxy_pass http://127.0.0.1:9090; }
+  }
+}

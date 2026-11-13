@@ -26,7 +26,8 @@ STEP_SECONDS = 15
 GAP_SECONDS = 10  # the first live scrape follows shortly, so history and live samples meet without overlapping
 MAX_AGE_SECONDS = 3450  # the head accepts samples up to one hour behind its newest sample
 BATCH_SERIES = 150
-BASE_LABELS = {"environment": "vercel", "instance": "127.0.0.1:8000", "job": "mlops-api"}
+BASE_LABELS = dict(pair.split("=", 1) for pair in os.environ.get(
+    "REPLAY_LABELS", "environment=vercel,instance=127.0.0.1:8000,job=mlops-api").split(","))
 SAMPLE = re.compile(r"^([a-zA-Z_:][a-zA-Z0-9_:]*)(?:\{(.*)\})? (\S+)$")
 LABEL = re.compile(r'([a-zA-Z_][a-zA-Z0-9_]*)="((?:[^"\\]|\\.)*)"')
 UNESCAPE = re.compile(r"\\(.)")

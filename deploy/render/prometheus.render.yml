@@ -1,0 +1,20 @@
+# Prometheus on the Render monitoring service. __API_HOST__ is filled in at boot from API_URL.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /opt/monitoring-src/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: mlops-api
+    scheme: https
+    metrics_path: /metrics
+    scrape_timeout: 10s
+    static_configs:
+      - targets: ["__API_HOST__"]
+        labels:
+          environment: render
+    relabel_configs:
+      - target_label: instance  # stable label, so the replayed history and live samples join up
+        replacement: api
