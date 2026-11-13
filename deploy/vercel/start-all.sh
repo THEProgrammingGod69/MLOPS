@@ -59,4 +59,4 @@ kill -HUP "$PROMETHEUS_PID"
 wait_for http://127.0.0.1:3300/grafana/api/health 60
 wait_for_series 'ALERTS{alertname="StudentDropoutRiskAbove50"}' 30
 sed "s/__PORT__/${PORT}/" deploy/vercel/nginx.conf.template > /tmp/nginx.conf
-exec nginx -c /tmp/nginx.conf -g 'daemon off;'
+exec nginx -e stderr -c /tmp/nginx.conf -g 'daemon off;'
