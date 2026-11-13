@@ -31,12 +31,19 @@ docker compose --profile demo up -d --build   # same, plus a synthetic traffic g
 | Grafana (anonymous viewer, admin/admin) | http://localhost:3000 |
 | Prometheus | http://localhost:9090 |
 
-## Public deployment (Render)
+## Live deployment (Render, free tier)
 
-`render.yaml` deploys the API + web UI, Prometheus and Grafana as three public HTTPS services:
-commit the model files (see `models/README.md`), then on render.com choose **New → Blueprint**
-and select this repository. Details and free-tier caveats:
-[docs/web_platform_and_observability.md §3.2](docs/web_platform_and_observability.md).
+| What | Link |
+|---|---|
+| Web app | https://student-dropout-ews.onrender.com/ui/ |
+| Grafana | https://student-dropout-ews-monitoring.onrender.com/grafana/d/mlops-monitoring |
+| Prometheus | https://student-dropout-ews-monitoring.onrender.com/prometheus/ |
+| API docs | https://student-dropout-ews.onrender.com/docs |
+
+Free services sleep after 15 idle minutes; the first visit afterwards takes about a minute.
+`render.yaml` defines both services; redeploy anywhere with one click:
+https://render.com/deploy?repo=https://github.com/THEProgrammingGod69/MLOPS. Design and
+free-tier details: [docs/web_platform_and_observability.md §3.2](docs/web_platform_and_observability.md).
 
 ## Local development
 
